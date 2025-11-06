@@ -1,0 +1,90 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: motionsound-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-motionsound}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_prod:/var/lib/mysql
+    networks:
+      - motionsound-network-prod
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: motionsound-mongodb-prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-motionsound}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data_prod:/data/db
+    networks:
+      - motionsound-network-prod
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: motionsound-backend-prod
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-motionsound}
+      MONGODB_URI: mongodb://mongodb:27017/${MONGODB_DATABASE:-motionsound}
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key_here}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PORT: 4000
+      NODE_ENV: production
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - motionsound-network-prod
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: motionsound-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+      NODE_ENV: production
+    depends_on:
+      - backend
+    networks:
+      - motionsound-network-prod
+
+volumes:
+  mysql_data_prod:
+  mongodb_data_prod:
+
+networks:
+  motionsound-network-prod:
+    driver: bridge
+
