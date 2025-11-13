@@ -62,6 +62,7 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
   const combineResults = useCallback(() => {
     const poseResults = poseResultsRef.current;
     const handsResults = handsResultsRef.current;
+    const faceResults = faceResultsRef.current;
 
     let leftHandLandmarks: any = null;
     let rightHandLandmarks: any = null;
@@ -102,7 +103,7 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
       poseLandmarks: poseResults?.poseLandmarks || null,
       leftHandLandmarks: leftHandLandmarks,
       rightHandLandmarks: rightHandLandmarks,
-      faceLandmarks: null,
+      faceLandmarks: faceResults?.multiFaceLandmarks?.[0] || null,
       timestamp: Date.now(),
     };
 
@@ -117,6 +118,12 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
 
   const handleHandsResults = useCallback((results: any) => {
     handsResultsRef.current = results;
+    combineResults();
+    isProcessingRef.current = false;
+  }, [combineResults]);
+
+  const handleFaceResults = useCallback((results: any) => {
+    faceResultsRef.current = results;
     combineResults();
     isProcessingRef.current = false;
   }, [combineResults]);
@@ -196,7 +203,7 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
         ctx.drawImage(videoRef.current, -canvas.width, 0, canvas.width, canvas.height);
         ctx.restore();
         
-        const { pose, hands } = mediaPipeRef.current;
+        const { pose, hands, faceMesh } = mediaPipeRef.current;
         
         if (!pose) {
           console.error('Pose 인스턴스가 없습니다!');
@@ -209,6 +216,10 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
           
           if (hands) {
             await hands.send({ image: canvas });
+          }
+          
+          if (faceMesh) {
+            await faceMesh.send({ image: canvas });
           }
           
           setTimeout(() => {
@@ -319,6 +330,7 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
           locateFile: () => '',
           onPoseResults: handlePoseResults,
           onHandsResults: handleHandsResults,
+          onFaceResults: handleFaceResults,
         });
         
         await new Promise(resolve => setTimeout(resolve, 5000));
