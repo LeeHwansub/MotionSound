@@ -17,7 +17,9 @@ Motion Sound는 단순한 모션 인식 기술이 아니라, 사용자의 제스
 - [API 문서](#7-api-문서-간략)
 - [기여 가이드](#8-기여-가이드)
 - [환경 변수](#9-환경-변수-env)
-- [로드맵](#10-to-do-roadmap)
+- [모션 인식 프로토타입 개발 현황](#10-모션-인식-프로토타입-개발-현황)
+- [개발 중 문제점 및 해결 방안](#11-개발-중-문제점-및-해결-방안)
+- [로드맵](#12-to-do-roadmap)
 
 ---
 
@@ -42,9 +44,10 @@ Motion Sound는 카메라 하나만 있으면 누구나 **'몸으로 연주'**�
 
 #### Perception Layer (인식)
 
-- **MediaPipe Holistic + TensorFlow.js**
-- 손, 팔, 상체의 움직임을 초당 30fps로 수집
+- **MediaPipe Pose, Hands, FaceMesh + TensorFlow.js**
+- 손, 팔, 상체, 얼굴의 움직임을 초당 30fps로 수집
 - 좌표를 smoothing 및 normalization 처리
+- 실시간 랜드마크 감지 및 시각화
 
 #### Mapping Layer (매핑)
 
@@ -153,10 +156,14 @@ motion-sound/
 ## 5. 주요 기능 요약
 
 - **회원가입 / 로그인** (JWT 기반 인증)
-- **실시간 모션 인식** (MediaPipe Holistic)
-- **모션 → 사운드 매핑** (Web Audio API)
-- **연주 저장 / 불러오기** (MongoDB)
-- **연주 공유** (커뮤니티 페이지)
+- **실시간 모션 인식** (MediaPipe Pose, Hands, FaceMesh)
+  - 포즈 인식: 33개 랜드마크 포인트 (전신 골격 구조)
+  - 손 인식: 양손 각 21개 랜드마크 포인트 (손가락 관절)
+  - 얼굴 인식: 468개 랜드마크 포인트 (얼굴 윤곽선, 눈, 코, 입)
+- **실시간 모션 시각화** (Canvas 기반 렌더링)
+- **모션 → 사운드 매핑** (Web Audio API) - 개발 예정
+- **연주 저장 / 불러오기** (MongoDB) - 개발 예정
+- **연주 공유** (커뮤니티 페이지) - 개발 예정
 
 ---
 
@@ -236,10 +243,193 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
 ---
 
-## 10. To-Do (Roadmap)
+## 10. 모션 인식 프로토타입 개발 현황
+
+### 완료된 기능
+
+#### MediaPipe 통합
+- **MediaPipe Pose**: 33개 랜드마크 포인트로 전신 골격 구조 인식
+- **MediaPipe Hands**: 양손 각 21개 랜드마크 포인트로 손가락 관절 인식
+- **MediaPipe FaceMesh**: 468개 랜드마크 포인트로 얼굴 윤곽선, 눈, 코, 입 인식
+
+#### 실시간 모션 캡처
+- 웹캠 자동 활성화
+- 실시간 프레임 처리 (약 30fps)
+- Canvas 기반 이미지 전처리 (좌우 반전 처리)
+
+#### 모션 시각화
+- Pose 랜드마크 시각화 (초록색, #00ff88)
+- Hands 랜드마크 시각화 (왼손: 빨간색 #ff4444, 오른손: 파란색 #4488ff)
+- FaceMesh 랜드마크 시각화 (주황색, #ffaa00)
+- 부드러운 애니메이션 렌더링 (requestAnimationFrame)
+
+#### 컴포넌트 구조
+- `MotionCapture`: 웹캠 제어 및 모션 인식 시작/중지
+- `MotionVisualizer`: Canvas 기반 모션 데이터 시각화
+- `useMotionRecognition`: 모션 인식 로직을 관리하는 커스텀 훅
+
+### 개발 중인 기능
+
+- [ ] 모션 → 사운드 매핑 알고리즘
+- [ ] Web Audio API 통합
+- [ ] 모션 데이터 저장/불러오기
+
+---
+
+## 11. 개발 중 문제점 및 해결 방안
+
+### 문제 1: MediaPipe Holistic의 onResults 콜백 미작동
+
+**문제점:**
+- MediaPipe Holistic을 사용하여 포즈, 손, 얼굴을 한 번에 인식하려 했으나, `onResults` 콜백이 호출되지 않음
+- 프레임은 정상적으로 전송되지만 결과를 받지 못함
+- MediaPipe Holistic은 2023년 3월부터 지원이 종료된 레거시 솔루션
+
+**해결 방안:**
+- MediaPipe 개별 솔루션으로 전환 (Pose, Hands, FaceMesh)
+- 각 솔루션을 독립적으로 초기화하고 순차적으로 로드
+- `onResults` 콜백을 각 솔루션별로 개별 설정
+
+```typescript
+// 개별 솔루션 초기화
+const pose = new Pose({ locateFile: poseLocateFile });
+pose.onResults(config.onPoseResults);
+
+const hands = new Hands({ locateFile: handsLocateFile });
+hands.onResults(config.onHandsResults);
+
+const faceMesh = new FaceMesh({ locateFile: faceMeshLocateFile });
+faceMesh.onResults(config.onFaceResults);
+```
+
+---
+
+### 문제 2: WASM 모듈 충돌
+
+**문제점:**
+- 여러 MediaPipe 솔루션을 동시에 로드할 때 WASM 모듈 충돌 발생
+- `RuntimeError: Aborted(Module.arguments has been replaced...)` 오류
+- 각 솔루션이 동일한 전역 WASM 모듈을 사용하려고 시도
+
+**해결 방안:**
+- 각 솔루션을 순차적으로 로드 (Pose → Hands → FaceMesh)
+- 각 솔루션 초기화 후 충분한 대기 시간 부여 (5초)
+- 각 솔루션별로 독립적인 `locateFile` 함수 구현
+
+```typescript
+// 순차적 로딩
+await new Promise(resolve => setTimeout(resolve, 5000)); // Pose 로드 대기
+await new Promise(resolve => setTimeout(resolve, 2000)); // Hands 로드 전 대기
+await new Promise(resolve => setTimeout(resolve, 5000)); // Hands 로드 대기
+```
+
+---
+
+### 문제 3: CDN 경로 문제 (jsdelivr 404 오류)
+
+**문제점:**
+- `jsdelivr` CDN에서 MediaPipe asset 파일을 로드할 때 404 오류 발생
+- 일부 파일이 `text/plain` MIME 타입으로 반환되어 실행 불가
+- 다른 솔루션의 asset 파일을 잘못된 경로에서 요청
+
+**해결 방안:**
+- `unpkg` CDN으로 변경
+- 각 솔루션별로 버전을 명시하여 정확한 경로 사용
+- `locateFile` 함수에서 각 솔루션의 asset 파일 경로를 명확히 구분
+
+```typescript
+const poseLocateFile = (file: string) => {
+  const version = '0.5.1675469404';
+  return `https://unpkg.com/@mediapipe/pose@${version}/${file}`;
+};
+```
+
+---
+
+### 문제 4: 서버사이드 렌더링 (SSR) 문제
+
+**문제점:**
+- Next.js의 서버사이드 렌더링 중 MediaPipe 모듈이 실행되어 `ReferenceError: navigator is not defined` 오류 발생
+- 브라우저 전용 API (`navigator`, `window`)를 서버에서 접근 시도
+
+**해결 방안:**
+- 동적 import를 사용하여 클라이언트에서만 모듈 로드
+- `typeof window === 'undefined'` 체크 추가
+- `'use client'` 디렉티브는 Pages Router에서 작동하지 않으므로 동적 import 사용
+
+```typescript
+export const createMediaPipeInstances = async (config: MediaPipeConfig) => {
+  if (typeof window === 'undefined') {
+    throw new Error('MediaPipe는 브라우저 환경에서만 사용할 수 있습니다.');
+  }
+  
+  const { Pose } = await import('@mediapipe/pose');
+  // ...
+};
+```
+
+---
+
+### 문제 5: 좌우 반전 문제 (왼손/오른손 구분)
+
+**문제점:**
+- 웹캠은 거울처럼 좌우가 반전된 이미지를 제공
+- MediaPipe가 웹캠의 좌우 반전된 이미지를 기준으로 왼손/오른손을 판단하여, 실제 사용자 입장에서는 반대로 표시됨
+- 시각화에서도 좌우가 반전되어 혼란 발생
+
+**해결 방안:**
+- MediaPipe에 전송하기 전에 Canvas에서 이미지를 좌우 반전 처리
+- 이렇게 하면 MediaPipe가 사용자 입장에서의 왼손/오른손을 올바르게 판단
+- 시각화에서는 추가 반전 없이 MediaPipe 결과를 그대로 사용
+
+```typescript
+// Canvas에 좌우 반전하여 그리기
+ctx.save();
+ctx.scale(-1, 1);
+ctx.drawImage(videoRef.current, -canvas.width, 0, canvas.width, canvas.height);
+ctx.restore();
+```
+
+---
+
+### 문제 6: 웹캠과 모션 인식 분리
+
+**문제점:**
+- 모션 인식을 중지하면 웹캠도 함께 비활성화됨
+- 사용자가 모션 인식을 일시 중지해도 웹캠은 계속 활성화되어 있어야 함
+
+**해결 방안:**
+- 웹캠 제어와 모션 인식을 별도 함수로 분리
+- `startCamera()` / `stopCamera()`: 웹캠 스트림 제어
+- `start()` / `stop()`: 모션 인식 제어
+- 컴포넌트 마운트 시 웹캠 자동 활성화, 언마운트 시에만 웹캠 비활성화
+
+```typescript
+// 웹캠과 모션 인식 분리
+const startCamera = useCallback(async () => {
+  // 웹캠만 시작
+}, []);
+
+const start = useCallback(async () => {
+  // 모션 인식만 시작
+}, []);
+
+const stop = useCallback(() => {
+  // 모션 인식만 중지
+}, []);
+
+const stopCamera = useCallback(() => {
+  // 웹캠만 중지
+}, []);
+```
+
+---
+
+## 12. To-Do (Roadmap)
 
 ### 1단계: 실시간 모션 → 음 출력
-- [ ] MediaPipe 연동
+- [x] MediaPipe 연동 (Pose, Hands, FaceMesh)
+- [x] 실시간 모션 시각화
 - [ ] Web Audio API 기본 구현
 - [ ] 모션-음 매핑 알고리즘
 
