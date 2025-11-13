@@ -71,7 +71,37 @@ export const createMediaPipeInstances = async (config: MediaPipeConfig): Promise
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
   
-  return { pose, hands };
+  let faceMesh: any = null;
+  
+  if (config.onFaceResults) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const { FaceMesh } = await import('@mediapipe/face_mesh');
+    
+    const faceMeshLocateFile = (file: string) => {
+      if (file.startsWith('http://') || file.startsWith('https://')) {
+        return file;
+      }
+      const version = '0.4.1633559619';
+      return `https://unpkg.com/@mediapipe/face_mesh@${version}/${file}`;
+    };
+    
+    faceMesh = new FaceMesh({
+      locateFile: faceMeshLocateFile,
+    } as any);
+    
+    faceMesh.onResults(config.onFaceResults);
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  
+  return { pose, hands, faceMesh };
 };
 
 export const getCameraStream = async (
