@@ -39,6 +39,8 @@ export default function Home() {
   } = useMotionPattern(motionData, audioEngineRef.current, {
     threshold: 0.3,
     checkInterval: 100,
+    maxSamples: 30,
+    sampleInterval: 500,
   });
 
   useEffect(() => {
@@ -84,13 +86,21 @@ export default function Home() {
     startRecording(recordingName, recordingNote || undefined);
   };
 
-  const handleStopRecording = () => {
-    const pattern = stopRecording(audioFileUrl || undefined);
+  const handleStopRecording = async () => {
+    const pattern = await stopRecording(audioFileUrl || undefined);
     if (pattern) {
       setRecordingName('');
       setRecordingNote(null);
       setAudioFileUrl('');
       alert(`모션 패턴 "${pattern.name}"이 저장되었습니다.`);
+    }
+  };
+
+  const handleDeletePattern = async (id: string) => {
+    try {
+      await deletePatternById(id);
+    } catch (error) {
+      console.error('모션 패턴 삭제 실패:', error);
     }
   };
 
@@ -408,7 +418,7 @@ export default function Home() {
                         </div>
                       </div>
                       <button
-                        onClick={() => deletePatternById(pattern.id)}
+                        onClick={() => handleDeletePattern(pattern.id)}
                         style={{
                           padding: '6px 12px',
                           fontSize: '12px',

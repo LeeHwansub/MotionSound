@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MotionData } from './useMotionRecognition';
+import { MotionPattern, calculateSimilarity } from '../lib/motionPattern';
 import {
-  MotionPattern,
-  getSavedPatterns,
-  savePattern,
-  deletePattern,
-  calculateSimilarity,
-} from '../lib/motionPattern';
+  fetchMotionPatterns,
+  createMotionPattern,
+  deleteMotionPattern,
+} from '../lib/api/motionPatterns';
 import { AudioEngine } from '../lib/audio';
 import { Note } from '../lib/musicalNotes';
 import { mapMotionToSound } from '../lib/soundMapping';
@@ -14,6 +13,8 @@ import { mapMotionToSound } from '../lib/soundMapping';
 export interface UseMotionPatternConfig {
   threshold?: number;
   checkInterval?: number;
+  maxSamples?: number;
+  sampleInterval?: number;
 }
 
 export interface UseMotionPatternReturn {
@@ -22,9 +23,9 @@ export interface UseMotionPatternReturn {
   recordingSamples: MotionData[];
   matchedPattern: MotionPattern | null;
   startRecording: (name: string, baseNote?: Note) => void;
-  stopRecording: (audioUrl?: string) => MotionPattern | null;
-  deletePatternById: (id: string) => void;
-  loadPatterns: () => void;
+  stopRecording: (audioUrl?: string) => Promise<MotionPattern | null>;
+  deletePatternById: (id: string) => Promise<void>;
+  loadPatterns: () => Promise<void>;
 }
 
 export const useMotionPattern = (
@@ -32,7 +33,12 @@ export const useMotionPattern = (
   audioEngine: AudioEngine | null,
   config: UseMotionPatternConfig = {}
 ): UseMotionPatternReturn => {
-  const { threshold = 0.3, checkInterval = 100 } = config;
+  const { 
+    threshold = 0.3, 
+    checkInterval = 100,
+    maxSamples = 30,
+    sampleInterval = 500
+  } = config;
 
   const [patterns, setPatterns] = useState<MotionPattern[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -42,14 +48,19 @@ export const useMotionPattern = (
   const recordingNameRef = useRef<string>('');
   const recordingBaseNoteRef = useRef<Note | undefined>(undefined);
   const lastCheckTimeRef = useRef<number>(0);
+  const lastSampleTimeRef = useRef<number>(0);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const previousMotionDataRef = useRef<MotionData | null>(null);
   const currentOscillatorsRef = useRef<Map<string, { oscillator: OscillatorNode; gainNode: GainNode }>>(new Map());
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
 
-  const loadPatterns = useCallback(() => {
-    const saved = getSavedPatterns();
-    setPatterns(saved);
+  const loadPatterns = useCallback(async () => {
+    try {
+      const saved = await fetchMotionPatterns();
+      setPatterns(saved);
+    } catch (error) {
+      console.error('모션 패턴 불러오기 실패:', error);
+    }
   }, []);
 
   useEffect(() => {
@@ -87,50 +98,67 @@ export const useMotionPattern = (
     recordingBaseNoteRef.current = baseNote;
     setIsRecording(true);
     setRecordingSamples([]);
+    lastSampleTimeRef.current = 0;
   }, []);
 
   const stopRecording = useCallback(
-    (audioUrl?: string): MotionPattern | null => {
+    async (audioUrl?: string): Promise<MotionPattern | null> => {
       if (recordingSamples.length === 0) {
         setIsRecording(false);
         return null;
       }
 
-      const pattern: MotionPattern = {
-        id: `pattern_${Date.now()}`,
-        name: recordingNameRef.current || `모션 ${Date.now()}`,
-        samples: [...recordingSamples],
-        audioUrl,
-        baseNote: recordingBaseNoteRef.current,
-        createdAt: Date.now(),
-      };
+      try {
+        const created = await createMotionPattern({
+          name: recordingNameRef.current || `모션 ${Date.now()}`,
+          samples: [...recordingSamples],
+          audioUrl,
+          baseNote: recordingBaseNoteRef.current,
+        });
 
-      savePattern(pattern);
-      loadPatterns();
-
-      setIsRecording(false);
-      setRecordingSamples([]);
-      recordingNameRef.current = '';
-      recordingBaseNoteRef.current = undefined;
-
-      return pattern;
+        await loadPatterns();
+        return created;
+      } catch (error) {
+        console.error('모션 패턴 저장 실패:', error);
+        return null;
+      } finally {
+        setIsRecording(false);
+        setRecordingSamples([]);
+        recordingNameRef.current = '';
+        recordingBaseNoteRef.current = undefined;
+      }
     },
     [recordingSamples, loadPatterns]
   );
 
   const deletePatternById = useCallback(
-    (id: string) => {
-      deletePattern(id);
-      loadPatterns();
+    async (id: string) => {
+      try {
+        await deleteMotionPattern(id);
+        await loadPatterns();
+      } catch (error) {
+        console.error('모션 패턴 삭제 실패:', error);
+      }
     },
     [loadPatterns]
   );
 
   useEffect(() => {
     if (isRecording && motionData) {
-      setRecordingSamples((prev) => [...prev, motionData]);
+      const now = Date.now();
+      // 샘플링 간격 체크 및 최대 샘플 수 제한
+      if (now - lastSampleTimeRef.current >= sampleInterval) {
+        setRecordingSamples((prev) => {
+          // 최대 샘플 수에 도달하면 오래된 샘플 제거 (FIFO)
+          if (prev.length >= maxSamples) {
+            return [...prev.slice(1), motionData];
+          }
+          return [...prev, motionData];
+        });
+        lastSampleTimeRef.current = now;
+      }
     }
-  }, [isRecording, motionData]);
+  }, [isRecording, motionData, sampleInterval, maxSamples]);
 
   useEffect(() => {
     if (!motionData || patterns.length === 0) {
