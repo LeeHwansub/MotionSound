@@ -200,11 +200,16 @@ motion-sound/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/auth/signup` | 회원가입 |
-| `POST` | `/api/auth/login` | 로그인 |
-| `GET` | `/api/motion/stream` | 모션 실시간 스트리밍 |
-| `POST` | `/api/music/save` | 연주 저장 |
-| `GET` | `/api/music/:id` | 연주 불러오기 |
+| `GET` | `/patterns` | 저장된 모션 패턴 목록 조회 |
+| `POST` | `/patterns` | 모션 패턴 생성 (샘플·오디오·노트 포함) |
+| `GET` | `/patterns/:id` | 특정 모션 패턴 상세 조회 |
+| `PATCH` | `/patterns/:id` | 모션 패턴 업데이트 |
+| `DELETE` | `/patterns/:id` | 모션 패턴 삭제 |
+| `GET` | `/performances` | 저장된 연주 데이터 목록 조회 |
+| `POST` | `/performances` | 연주 데이터 저장 (모션 프레임·사운드 이벤트) |
+| `GET` | `/performances/:id` | 특정 연주 데이터 조회 |
+| `PATCH` | `/performances/:id` | 연주 데이터 업데이트 |
+| `DELETE` | `/performances/:id` | 연주 데이터 삭제 |
 
 ---
 
@@ -294,6 +299,12 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 - **로컬 스토리지 저장**: 브라우저 로컬 스토리지에 패턴 저장
 - **오디오 프리로딩 및 캐싱**: 패턴 로드 시 오디오 파일을 미리 로드하여 재생 지연 최소화
 - **패턴 유지 로직**: 매칭되지 않은 모션이 나와도 이전에 매칭된 패턴의 음악 유지
+
+#### 서버 데이터 연동 (MongoDB)
+- **MotionPattern API**: `/patterns` REST 엔드포인트로 모션 패턴 생성/조회/수정/삭제 지원
+- **Performance API**: `/performances` 엔드포인트로 연주 이력, 사운드 이벤트, 모션 프레임 저장
+- **Nest.js + Mongoose** 기반 스키마/DTO/서비스 구성
+- Docker Compose 내 MongoDB 컨테이너와 자동 연동 (환경변수 `MONGODB_URI`)
 
 #### 테스트 환경
 - **Jest 설정**: 단위 테스트 및 통합 테스트 환경 구축
@@ -527,9 +538,9 @@ if (bestMatch) {
 - [x] 테스트 환경 구축 (Jest)
 
 ### 2단계: 연주 저장 / 재생
-- [ ] MongoDB 연동
-- [ ] 서버에 모션 패턴 저장/불러오기
-- [ ] 연주 데이터 저장/불러오기
+- [x] MongoDB 연동
+- [x] 서버에 모션 패턴 저장/불러오기
+- [x] 연주 데이터 저장/불러오기
 - [x] 로컬 스토리지 기반 모션 패턴 저장 (완료)
 - [x] 테스트 커버리지 확대 (진행 중)
 
