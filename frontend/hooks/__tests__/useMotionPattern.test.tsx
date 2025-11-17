@@ -8,10 +8,17 @@ import { MotionPattern } from '../../lib/motionPattern'
 jest.mock('../../lib/audio')
 jest.mock('../../lib/motionPattern', () => ({
   ...jest.requireActual('../../lib/motionPattern'),
-  getSavedPatterns: jest.fn(() => []),
-  savePattern: jest.fn(),
-  deletePattern: jest.fn(),
   calculateSimilarity: jest.fn(),
+}))
+jest.mock('../../lib/api/motionPatterns', () => ({
+  fetchMotionPatterns: jest.fn().mockResolvedValue([]),
+  createMotionPattern: jest.fn().mockResolvedValue({
+    id: 'server-id',
+    name: 'test-pattern',
+    samples: [],
+    createdAt: Date.now(),
+  }),
+  deleteMotionPattern: jest.fn().mockResolvedValue(undefined),
 }))
 
 describe('useMotionPattern', () => {
@@ -50,7 +57,7 @@ describe('useMotionPattern', () => {
     jest.clearAllMocks()
   })
 
-  it('초기 상태가 올바르게 설정되어야 함', () => {
+  it('초기 상태가 올바르게 설정되어야 함', async () => {
     const motionData: MotionData = {
       timestamp: Date.now(),
       poseLandmarks: [],
@@ -62,13 +69,14 @@ describe('useMotionPattern', () => {
     const { result } = renderHook(() =>
       useMotionPattern(motionData, mockAudioEngine)
     )
+    await act(async () => {})
 
     expect(result.current.patterns).toEqual([])
     expect(result.current.isRecording).toBe(false)
     expect(result.current.matchedPattern).toBeNull()
   })
 
-  it('패턴 기록을 시작할 수 있어야 함', () => {
+  it('패턴 기록을 시작할 수 있어야 함', async () => {
     const motionData: MotionData = {
       timestamp: Date.now(),
       poseLandmarks: [],
@@ -80,6 +88,7 @@ describe('useMotionPattern', () => {
     const { result } = renderHook(() =>
       useMotionPattern(motionData, mockAudioEngine)
     )
+    await act(async () => {})
 
     act(() => {
       result.current.startRecording('test-pattern', baseNote)
@@ -88,7 +97,7 @@ describe('useMotionPattern', () => {
     expect(result.current.isRecording).toBe(true)
   })
 
-  it('패턴 기록을 중지할 수 있어야 함', () => {
+  it('패턴 기록을 중지할 수 있어야 함', async () => {
     const motionData: MotionData = {
       timestamp: Date.now(),
       poseLandmarks: [],
@@ -100,19 +109,20 @@ describe('useMotionPattern', () => {
     const { result } = renderHook(() =>
       useMotionPattern(motionData, mockAudioEngine)
     )
+    await act(async () => {})
 
     act(() => {
       result.current.startRecording('test-pattern', baseNote)
     })
 
-    act(() => {
-      result.current.stopRecording()
+    await act(async () => {
+      await result.current.stopRecording()
     })
 
     expect(result.current.isRecording).toBe(false)
   })
 
-  it('패턴을 삭제할 수 있어야 함', () => {
+  it('패턴을 삭제할 수 있어야 함', async () => {
     const motionData: MotionData = {
       timestamp: Date.now(),
       poseLandmarks: [],
@@ -124,9 +134,10 @@ describe('useMotionPattern', () => {
     const { result } = renderHook(() =>
       useMotionPattern(motionData, mockAudioEngine)
     )
+    await act(async () => {})
 
-    act(() => {
-      result.current.deletePatternById('test-id')
+    await act(async () => {
+      await result.current.deletePatternById('test-id')
     })
 
     expect(result.current.patterns).toEqual([])
