@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import { MotionCapture } from '../components/MotionRecognition/MotionCapture';
 import { MotionVisualizer } from '../components/MotionRecognition/MotionVisualizer';
 import { MotionData } from '../hooks/useMotionRecognition';
@@ -8,17 +9,33 @@ import { useMotionPattern } from '../hooks/useMotionPattern';
 import { Note, NOTE_NAMES, OCTAVE_RANGE, getNoteFrequency, DEFAULT_NOTE } from '../lib/musicalNotes';
 import { AudioEngine } from '../lib/audio';
 import { MotionPattern } from '../lib/motionPattern';
+import { uploadAudio } from '../lib/api/videos';
 
 export default function Home() {
+  const router = useRouter();
   const [motionData, setMotionData] = useState<MotionData | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Note>(DEFAULT_NOTE);
   const [recordingName, setRecordingName] = useState('');
   const [recordingNote, setRecordingNote] = useState<Note | null>(null);
   const [audioFileUrl, setAudioFileUrl] = useState<string>('');
+  const [isAudioUploading, setIsAudioUploading] = useState(false);
   
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const [audioEngineInitialized, setAudioEngineInitialized] = useState(false);
+
+  // 영상 녹화 관련 상태
+  const [isVideoRecording, setIsVideoRecording] = useState(false);
+  const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [recordedVideoDuration, setRecordedVideoDuration] = useState<number | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [videoName, setVideoName] = useState('');
+  const [isPreparingPost, setIsPreparingPost] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const videoStreamRef = useRef<MediaStream | null>(null);
+  const recordStartTimeRef = useRef<number | null>(null);
   
   const { isInitialized, initialize, updateMotion, stop } = useSoundMapping({
     enabled: soundEnabled,
@@ -104,13 +121,144 @@ export default function Home() {
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setAudioFileUrl(url);
+      try {
+        setIsAudioUploading(true);
+        const result = await uploadAudio(file);
+        setAudioFileUrl(result.url);
+        alert('오디오 등록 되었습니다.');
+      } catch (error) {
+        console.error('오디오 업로드 실패:', error);
+        alert('오디오 업로드에 실패했습니다.');
+      } finally {
+        setIsAudioUploading(false);
+      }
     }
   };
+
+  // 영상 녹화 시작
+  const handleStartVideoRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      videoStreamRef.current = stream;
+      recordedChunksRef.current = [];
+      recordStartTimeRef.current = Date.now();
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+      });
+
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const duration = recordStartTimeRef.current
+          ? Date.now() - recordStartTimeRef.current
+          : null;
+
+        setRecordedVideoBlob(blob);
+        setRecordedVideoUrl(url);
+        setRecordedVideoDuration(duration);
+        setIsVideoRecording(false);
+        setShowVideoModal(true);
+
+        stream.getTracks().forEach((track) => track.stop());
+        videoStreamRef.current = null;
+      };
+
+      recorder.start(1000);
+      setIsVideoRecording(true);
+    } catch (error) {
+      console.error('영상 녹화 시작 실패:', error);
+      alert('영상 녹화를 시작할 수 없습니다. 카메라와 마이크 권한을 확인해주세요.');
+    }
+  };
+
+  // 영상 녹화 중지
+  const handleStopVideoRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  // 영상 다운로드
+  const handleDownloadVideo = () => {
+    if (recordedVideoBlob) {
+      const url = URL.createObjectURL(recordedVideoBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${videoName || 'motion-sound'}-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // 커뮤니티에 등록
+  const handleRegisterToCommunity = async () => {
+    if (!recordedVideoBlob || !videoName.trim()) {
+      alert('영상 이름을 입력해주세요.');
+      return;
+    }
+
+    try {
+      setIsPreparingPost(true);
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'pendingCommunityPost',
+          JSON.stringify({
+            title: videoName,
+            content: '모션 인식과 사운드 매핑이 포함된 영상입니다.',
+          }),
+        );
+
+        const globalWindow = window as typeof window & {
+          motionVideoDraft?: Blob;
+          motionVideoDraftUrl?: string | null;
+          motionVideoDraftDuration?: number | null;
+        };
+
+        globalWindow.motionVideoDraft = recordedVideoBlob;
+        globalWindow.motionVideoDraftUrl = recordedVideoUrl;
+        globalWindow.motionVideoDraftDuration = recordedVideoDuration ?? null;
+      }
+
+      alert('커뮤니티 작성 페이지로 이동합니다. 영상 내용을 확인하고 수정할 수 있습니다.');
+      setShowVideoModal(false);
+      router.push('/community/new');
+    } catch (error) {
+      console.error('커뮤니티 이동 준비 실패:', error);
+      alert('커뮤니티 이동에 실패했습니다.');
+    } finally {
+      setIsPreparingPost(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recordedVideoUrl) {
+        URL.revokeObjectURL(recordedVideoUrl);
+      }
+      if (videoStreamRef.current) {
+        videoStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [recordedVideoUrl]);
 
   return (
     <>
@@ -161,9 +309,57 @@ export default function Home() {
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
               }}
             >
-              <h2 style={{ fontSize: '20px', marginBottom: '16px', color: '#111827' }}>
-                모션 캡처
-              </h2>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '16px',
+                  gap: '12px',
+                }}
+              >
+                <h2 style={{ fontSize: '20px', color: '#111827' }}>모션 캡처</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isVideoRecording && (
+                    <span style={{ fontSize: '14px', color: '#ef4444', fontWeight: 500 }}>
+                      녹화 중
+                    </span>
+                  )}
+                  <button
+                    onClick={
+                      isVideoRecording ? handleStopVideoRecording : handleStartVideoRecording
+                    }
+                    aria-label={isVideoRecording ? '녹화 중지' : '녹화 시작'}
+                    title={isVideoRecording ? '녹화 중지' : '녹화 시작'}
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '9999px',
+                      border: 'none',
+                      backgroundColor: '#f3f4f6',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      boxShadow: 'inset 0 0 0 2px rgba(0, 0, 0, 0.05)',
+                      transition: 'transform 0.2s ease, background-color 0.2s ease',
+                    }}
+                    onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+                    onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  >
+                    <span
+                      style={{
+                        display: 'block',
+                        width: isVideoRecording ? '18px' : '22px',
+                        height: isVideoRecording ? '18px' : '22px',
+                        borderRadius: isVideoRecording ? '4px' : '9999px',
+                        backgroundColor: '#ef4444',
+                        margin: '0 auto',
+                        transition: 'all 0.2s ease',
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
               <MotionCapture
                 autoStart={false}
                 showVideo={true}
@@ -597,6 +793,132 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* 영상 녹화 모달 */}
+      {showVideoModal && recordedVideoUrl && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowVideoModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '800px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '24px', marginBottom: '24px', color: '#111827' }}>
+              녹화된 영상
+            </h2>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                영상 이름
+              </label>
+              <input
+                type="text"
+                value={videoName}
+                onChange={(e) => setVideoName(e.target.value)}
+                placeholder="예: 손 흔들기 모션"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <video
+                src={recordedVideoUrl}
+                controls
+                style={{
+                  width: '100%',
+                  borderRadius: '8px',
+                  backgroundColor: '#000',
+                }}
+              />
+              {recordedVideoDuration && (
+                <p style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
+                  길이: {Math.round(recordedVideoDuration / 1000)}초
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleDownloadVideo}
+                disabled={!recordedVideoBlob}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  backgroundColor: recordedVideoBlob ? '#10b981' : '#9ca3af',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: recordedVideoBlob ? 'pointer' : 'not-allowed',
+                  fontWeight: '500',
+                }}
+              >
+                다운로드
+              </button>
+              <button
+                onClick={handleRegisterToCommunity}
+                disabled={!videoName.trim() || isPreparingPost || !recordedVideoBlob}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  backgroundColor: videoName.trim() && !isPreparingPost && recordedVideoBlob ? '#3b82f6' : '#9ca3af',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: videoName.trim() && !isPreparingPost && recordedVideoBlob ? 'pointer' : 'not-allowed',
+                  fontWeight: '500',
+                }}
+              >
+                {isPreparingPost ? '이동 준비 중...' : '커뮤니티로 이동'}
+              </button>
+              <button
+                onClick={() => setShowVideoModal(false)}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
