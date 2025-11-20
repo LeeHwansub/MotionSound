@@ -60,6 +60,7 @@ export const useMotionPattern = (
       setPatterns(saved);
     } catch (error) {
       console.error('모션 패턴 불러오기 실패:', error);
+      setPatterns([]);
     }
   }, []);
 
