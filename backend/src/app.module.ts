@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MotionPatternModule } from './modules/motion-pattern/motion-pattern.module';
 import { PerformanceModule } from './modules/performance/performance.module';
+import { PostModule } from './modules/post/post.module';
+import { VideoModule } from './modules/video/video.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { PerformanceModule } from './modules/performance/performance.module';
     }),
     MotionPatternModule,
     PerformanceModule,
+    PostModule,
+    VideoModule,
   ],
   controllers: [],
   providers: [],
