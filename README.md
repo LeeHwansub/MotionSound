@@ -857,4 +857,5 @@ const seekVideo = async (video: HTMLVideoElement, time: number) => {
 - [x] 조회수 기능
 - [x] OAuth 인증 시스템 (Google, Kakao, Naver)
 - [x] JWT 기반 인증 미들웨어
+- [x] 로그인 페이지 및 공통 Header 컴포넌트
 - [ ] 실시간 협연 모드
