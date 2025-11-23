@@ -49,5 +49,25 @@ export class PostService {
     }
     return deleted;
   }
+
+  async incrementLikeCount(id: string) {
+    const updated = await this.postModel
+      .findByIdAndUpdate(id, { $inc: { likeCount: 1 } }, { new: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException('게시물을 찾을 수 없습니다.');
+    }
+    return updated;
+  }
+
+  async incrementViewCount(id: string) {
+    const updated = await this.postModel
+      .findByIdAndUpdate(id, { $inc: { viewCount: 1 } }, { new: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException('게시물을 찾을 수 없습니다.');
+    }
+    return updated;
+  }
 }
 
