@@ -43,6 +43,9 @@ export class Post {
 
   @Prop({ default: 0 })
   likeCount: number;
+
+  @Prop({ type: [String], default: [] })
+  likedBy: string[];
 }
 
 export const PostSchema = SchemaFactory.createForClass(Post);

@@ -1,17 +1,44 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useState, useEffect, useMemo } from 'react';
-import { fetchPost, Post } from '../../lib/api/posts';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { fetchPost, likePost, incrementViewCount, Post } from '../../lib/api/posts';
+
+const getUserId = (): string => {
+  if (typeof window === 'undefined') {
+    return 'anonymous';
+  }
+  let userId = localStorage.getItem('motionSound_userId');
+  if (!userId) {
+    userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('motionSound_userId', userId);
+  }
+  return userId;
+};
 
 export default function PostDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLiking, setIsLiking] = useState(false);
+  const viewCountIncrementedRef = useRef<string | null>(null);
+  const userId = useMemo(() => getUserId(), []);
 
   useEffect(() => {
     if (id && typeof id === 'string') {
       loadPost(id);
+      
+      if (viewCountIncrementedRef.current !== id) {
+        viewCountIncrementedRef.current = id;
+        incrementViewCount(id)
+          .then((updatedPost) => {
+            setPost((prev) => prev ? { ...prev, viewCount: updatedPost.viewCount } : null);
+          })
+          .catch((error) => {
+            console.error('조회수 증가 실패:', error);
+            viewCountIncrementedRef.current = null;
+          });
+      }
     }
   }, [id]);
 
@@ -38,6 +65,27 @@ export default function PostDetailPage() {
       minute: '2-digit',
     });
   };
+
+  const handleLike = async () => {
+    if (!id || typeof id !== 'string' || isLiking) {
+      return;
+    }
+
+    try {
+      setIsLiking(true);
+      const updatedPost = await likePost(id, userId);
+      setPost(updatedPost);
+    } catch (error) {
+      console.error('좋아요 실패:', error);
+      alert('좋아요에 실패했습니다.');
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const isLiked = useMemo(() => {
+    return post?.likedBy?.includes(userId) || false;
+  }, [post, userId]);
 
   const resolvedVideoUrl = useMemo(() => {
     if (!post) {
@@ -133,10 +181,29 @@ export default function PostDetailPage() {
           </div>
 
           <div style={{ marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid #eee' }}>
-            <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.875rem', color: '#666' }}>
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', fontSize: '0.875rem', color: '#666' }}>
               <span>작성자: {post.author}</span>
               <span>조회수: {post.viewCount}</span>
-              <span>좋아요: {post.likeCount}</span>
+              <button
+                onClick={handleLike}
+                disabled={isLiking}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: isLiked ? '#fee2e2' : '#f0f0f0',
+                  border: `1px solid ${isLiked ? '#fca5a5' : '#ddd'}`,
+                  borderRadius: '6px',
+                  cursor: isLiking ? 'not-allowed' : 'pointer',
+                  fontSize: '0.875rem',
+                  color: isLiked ? '#dc2626' : '#666',
+                  opacity: isLiking ? 0.6 : 1,
+                }}
+              >
+                <span>{isLiked ? '❤️' : '🤍'}</span>
+                <span>좋아요 {post.likeCount}</span>
+              </button>
               <span>{formatDate(post.createdAt)}</span>
             </div>
           </div>
@@ -178,4 +245,3 @@ export default function PostDetailPage() {
     </>
   );
 }
-

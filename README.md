@@ -559,6 +559,113 @@ app.use(json({ limit: '50mb' }));
 
 ---
 
+### 문제 10: 비디오 편집기 렌더링 시 비동기 이벤트 처리
+
+**문제점:**
+- 비디오 메타데이터 로딩과 프레임 탐색이 비동기적으로 처리되어 Promise 기반 대기가 필요
+- `video.currentTime` 변경 후 `seeked` 이벤트가 발생하기 전에 `drawImage`를 호출하면 이전 프레임이 그려짐
+- 비디오 요소의 이벤트 리스너가 제대로 정리되지 않으면 메모리 누수 발생
+
+**해결 방안:**
+- `waitForVideoEvent` 함수로 비디오 이벤트를 Promise로 래핑하여 비동기 처리
+- `seekVideo` 함수에서 `seeked` 이벤트를 기다린 후에만 다음 프레임 렌더링
+- 이벤트 리스너에 `once: true` 옵션 사용 및 cleanup 함수로 메모리 누수 방지
+
+```typescript
+const waitForVideoEvent = (video: HTMLVideoElement, event: 'loadedmetadata' | 'seeked') => {
+  return new Promise<void>((resolve, reject) => {
+    const onEvent = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('비디오 로드 중 오류가 발생했습니다.'));
+    };
+    const cleanup = () => {
+      video.removeEventListener(event, onEvent);
+      video.removeEventListener('error', onError);
+    };
+
+    video.addEventListener(event, onEvent, { once: true });
+    video.addEventListener('error', onError, { once: true });
+  });
+};
+```
+
+---
+
+### 문제 11: Blob URL 메모리 누수
+
+**문제점:**
+- `URL.createObjectURL()`로 생성한 Blob URL을 `URL.revokeObjectURL()`로 해제하지 않으면 메모리 누수 발생
+- 컴포넌트 언마운트 시 또는 새로운 비디오가 로드될 때 이전 Blob URL이 해제되지 않음
+
+**해결 방안:**
+- `useRef`로 생성된 Blob URL을 추적
+- `useEffect` cleanup 함수에서 Blob URL 해제
+- 새로운 비디오가 로드될 때 이전 Blob URL을 먼저 해제
+
+```typescript
+const createdBlobUrlRef = useRef<string | null>(null);
+
+useEffect(() => {
+  return () => {
+    if (createdBlobUrlRef.current) {
+      URL.revokeObjectURL(createdBlobUrlRef.current);
+      createdBlobUrlRef.current = null;
+    }
+  };
+}, []);
+
+useEffect(() => {
+  if (createdBlobUrlRef.current) {
+    URL.revokeObjectURL(createdBlobUrlRef.current);
+    createdBlobUrlRef.current = null;
+  }
+
+  if (initialVideoBlob) {
+    const createdUrl = URL.createObjectURL(initialVideoBlob);
+    createdBlobUrlRef.current = createdUrl;
+    setVideoSourceUrl(createdUrl);
+  }
+}, [initialVideoBlob]);
+```
+
+---
+
+### 문제 12: 비디오 탐색 시 경계값 오류
+
+**문제점:**
+- `video.currentTime`에 `NaN`이나 음수, 또는 비디오 duration을 초과하는 값을 설정하면 오류 발생
+- 비디오 duration이 아직 로드되지 않은 상태에서 탐색 시도 시 오류
+
+**해결 방안:**
+- `seekVideo` 함수에서 경계값 체크 및 안전한 시간 계산
+- 비디오 duration이 로드된 후에만 탐색 수행
+
+```typescript
+const seekVideo = async (video: HTMLVideoElement, time: number) => {
+  if (Number.isNaN(time) || time < 0) {
+    return;
+  }
+  if (video.duration && time > video.duration) {
+    return;
+  }
+
+  const safeTime =
+    video.duration && time > video.duration
+      ? Math.max(video.duration - 0.05, 0)
+      : time;
+  video.currentTime = safeTime;
+  
+  // seeked 이벤트 대기
+  await waitForVideoEvent(video, 'seeked');
+};
+```
+
+---
+
 ## 12. To-Do (Roadmap)
 
 ### 1단계: 실시간 모션 → 음 출력
