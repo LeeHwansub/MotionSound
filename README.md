@@ -193,6 +193,12 @@ motion-sound/
   - 좋아요 기능 (1계정당 1게시물에 1개만)
   - 조회수 자동 증가
   - 게시물 목록 및 상세 페이지
+- **UI/UX 개선**
+  - 공통 Header 컴포넌트 (모든 페이지에 적용)
+  - 로고 SVG 파일 및 브랜딩
+  - 전용 로그인 페이지 (`/login`)
+  - 네비게이션 메뉴 (홈, 커뮤니티)
+  - 현재 페이지 하이라이트
 
 ---
 
@@ -330,6 +336,7 @@ NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
 - `MotionCapture`: 웹캠 제어 및 모션 인식 시작/중지
 - `MotionVisualizer`: Canvas 기반 모션 데이터 시각화
 - `VideoEditor`: 비디오 편집 컴포넌트 (클립 분할, 오디오 트랙 추가, 타임라인 편집)
+- `Header`: 공통 헤더 컴포넌트 (로고, 네비게이션, 인증 상태 표시)
 - `useMotionRecognition`: 모션 인식 로직을 관리하는 커스텀 훅
 
 #### Web Audio API 통합
@@ -387,6 +394,24 @@ NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
   - AuthContext를 통한 전역 인증 상태 관리
   - API 요청 시 JWT 토큰 자동 포함
   - OAuth 콜백 후 자동 사용자 정보 갱신
+- **로그인 페이지**: 
+  - 전용 로그인 페이지 (`/login`)
+  - Google, Kakao, Naver 소셜 로그인 버튼
+  - 브랜드 컬러 및 아이콘 적용
+  - 이미 로그인한 경우 자동 리다이렉트
+
+#### UI/UX 개선
+- **공통 Header 컴포넌트**:
+  - 모든 페이지에 적용되는 통합 헤더
+  - 로고 및 브랜드명 표시 (그라데이션 텍스트)
+  - 네비게이션 메뉴 (홈, 커뮤니티)
+  - 현재 페이지 하이라이트
+  - 로그인 상태에 따른 UI (사용자 정보 / 로그인 버튼)
+  - Sticky 포지션으로 스크롤 시 상단 고정
+- **로고 및 브랜딩**:
+  - Motion Sound 브랜드 로고 (SVG)
+  - 음표, 움직임 파형, 모션 인식 요소 포함
+  - 그라데이션 적용
 
 #### 테스트 환경
 - **Jest 설정**: 단위 테스트 및 통합 테스트 환경 구축
