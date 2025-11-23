@@ -12,6 +12,7 @@ export interface Post {
   isPublic: boolean;
   viewCount: number;
   likeCount: number;
+  likedBy?: string[];
   videoUrl?: string;
   videoKey?: string;
   videoSize?: number;
@@ -95,9 +96,10 @@ export async function deletePost(id: string): Promise<void> {
   await request(`/posts/${id}`, { method: 'DELETE' });
 }
 
-export async function likePost(id: string): Promise<Post> {
+export async function likePost(id: string, userId: string): Promise<Post> {
   return request<Post>(`/posts/${id}/like`, {
     method: 'POST',
+    body: JSON.stringify({ userId }),
   });
 }
 

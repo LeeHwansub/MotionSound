@@ -1,7 +1,19 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchPost, likePost, incrementViewCount, Post } from '../../lib/api/posts';
+
+const getUserId = (): string => {
+  if (typeof window === 'undefined') {
+    return 'anonymous';
+  }
+  let userId = localStorage.getItem('motionSound_userId');
+  if (!userId) {
+    userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('motionSound_userId', userId);
+  }
+  return userId;
+};
 
 export default function PostDetailPage() {
   const router = useRouter();
@@ -9,13 +21,24 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLiking, setIsLiking] = useState(false);
+  const viewCountIncrementedRef = useRef<string | null>(null);
+  const userId = useMemo(() => getUserId(), []);
 
   useEffect(() => {
     if (id && typeof id === 'string') {
       loadPost(id);
-      incrementViewCount(id).catch((error) => {
-        console.error('조회수 증가 실패:', error);
-      });
+      
+      if (viewCountIncrementedRef.current !== id) {
+        viewCountIncrementedRef.current = id;
+        incrementViewCount(id)
+          .then((updatedPost) => {
+            setPost((prev) => prev ? { ...prev, viewCount: updatedPost.viewCount } : null);
+          })
+          .catch((error) => {
+            console.error('조회수 증가 실패:', error);
+            viewCountIncrementedRef.current = null;
+          });
+      }
     }
   }, [id]);
 
@@ -50,7 +73,7 @@ export default function PostDetailPage() {
 
     try {
       setIsLiking(true);
-      const updatedPost = await likePost(id);
+      const updatedPost = await likePost(id, userId);
       setPost(updatedPost);
     } catch (error) {
       console.error('좋아요 실패:', error);
@@ -59,6 +82,10 @@ export default function PostDetailPage() {
       setIsLiking(false);
     }
   };
+
+  const isLiked = useMemo(() => {
+    return post?.likedBy?.includes(userId) || false;
+  }, [post, userId]);
 
   const resolvedVideoUrl = useMemo(() => {
     if (!post) {
@@ -165,16 +192,16 @@ export default function PostDetailPage() {
                   alignItems: 'center',
                   gap: '0.5rem',
                   padding: '0.5rem 1rem',
-                  backgroundColor: '#f0f0f0',
-                  border: '1px solid #ddd',
+                  backgroundColor: isLiked ? '#fee2e2' : '#f0f0f0',
+                  border: `1px solid ${isLiked ? '#fca5a5' : '#ddd'}`,
                   borderRadius: '6px',
                   cursor: isLiking ? 'not-allowed' : 'pointer',
                   fontSize: '0.875rem',
-                  color: '#666',
+                  color: isLiked ? '#dc2626' : '#666',
                   opacity: isLiking ? 0.6 : 1,
                 }}
               >
-                <span>❤️</span>
+                <span>{isLiked ? '❤️' : '🤍'}</span>
                 <span>좋아요 {post.likeCount}</span>
               </button>
               <span>{formatDate(post.createdAt)}</span>
@@ -218,4 +245,3 @@ export default function PostDetailPage() {
     </>
   );
 }
-
