@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: () => void;
+  login: (provider?: 'google' | 'kakao' | 'naver') => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -42,9 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, []);
 
-  const login = () => {
+  const login = (provider: 'google' | 'kakao' = 'google') => {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    window.location.href = `${API_BASE}/auth/google`;
+    window.location.href = `${API_BASE}/auth/${provider}`;
   };
 
   const logout = () => {

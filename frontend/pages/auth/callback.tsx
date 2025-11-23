@@ -1,20 +1,24 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { saveToken } from '../../lib/api/auth';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthCallback() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     const { token } = router.query;
 
     if (token && typeof token === 'string') {
       saveToken(token);
-      router.push('/');
+      refreshUser().then(() => {
+        router.push('/');
+      });
     } else {
       router.push('/');
     }
-  }, [router]);
+  }, [router, refreshUser]);
 
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>

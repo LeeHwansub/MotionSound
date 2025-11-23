@@ -1,6 +1,13 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+function getAuthToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('auth_token');
+  }
+  return null;
+}
+
 export interface Post {
   _id: string;
   title: string;
@@ -24,7 +31,7 @@ export interface Post {
 export interface CreatePostPayload {
   title: string;
   content: string;
-  author: string;
+  author?: string;
   performanceId?: string;
   motionPatternId?: string;
   thumbnailUrl?: string;
@@ -40,13 +47,20 @@ async function request<T>(
   options?: RequestInit,
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const token = getAuthToken();
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options?.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   
   try {
     const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options?.headers || {}),
-      },
+      headers,
       ...options,
     });
 
@@ -96,10 +110,9 @@ export async function deletePost(id: string): Promise<void> {
   await request(`/posts/${id}`, { method: 'DELETE' });
 }
 
-export async function likePost(id: string, userId: string): Promise<Post> {
+export async function likePost(id: string): Promise<Post> {
   return request<Post>(`/posts/${id}/like`, {
     method: 'POST',
-    body: JSON.stringify({ userId }),
   });
 }
 
