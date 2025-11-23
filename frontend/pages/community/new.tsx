@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { createPost } from '../../lib/api/posts';
 import { uploadVideo } from '../../lib/api/videos';
 import { useAuth } from '../../contexts/AuthContext';
+import { Header } from '../../components/Header/Header';
 
 interface PendingPostData {
   title?: string;
@@ -421,6 +422,7 @@ export default function CommunityNewPage() {
       <Head>
         <title>커뮤니티 게시물 작성 - Motion Sound</title>
       </Head>
+      <Header />
       <div
         style={{
           maxWidth: '900px',

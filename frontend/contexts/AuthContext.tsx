@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, []);
 
-  const login = (provider: 'google' | 'kakao' = 'google') => {
+  const login = (provider: 'google' | 'kakao' | 'naver' = 'google') => {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     window.location.href = `${API_BASE}/auth/${provider}`;
   };

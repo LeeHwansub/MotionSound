@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchPost, likePost, incrementViewCount, Post } from '../../lib/api/posts';
 import { useAuth } from '../../contexts/AuthContext';
+import { Header } from '../../components/Header/Header';
 
 export default function PostDetailPage() {
   const router = useRouter();
@@ -107,31 +108,37 @@ export default function PostDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>로딩 중...</p>
-      </div>
+      <>
+        <Header />
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <p>로딩 중...</p>
+        </div>
+      </>
     );
   }
 
   if (!post) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>게시물을 찾을 수 없습니다.</p>
-        <button
-          onClick={() => router.push('/community')}
-          style={{
-            marginTop: '1rem',
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#0070f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }}
-        >
+      <>
+        <Header />
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <p>게시물을 찾을 수 없습니다.</p>
+          <button
+            onClick={() => router.push('/community')}
+            style={{
+              marginTop: '1rem',
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#0070f3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
           목록으로 돌아가기
         </button>
       </div>
+      </>
     );
   }
 
@@ -140,6 +147,7 @@ export default function PostDetailPage() {
       <Head>
         <title>{post.title} - Motion Sound</title>
       </Head>
+      <Header />
 
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
         <button
