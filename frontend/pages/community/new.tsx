@@ -34,6 +34,13 @@ export default function CommunityNewPage() {
   const [prefillAvailable, setPrefillAvailable] = useState(false);
   const ownedPreviewUrlRef = useRef<string | null>(null);
   const currentUserId = 'user1';
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [isTrimming, setIsTrimming] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const originalVideoBlobRef = useRef<Blob | null>(null);
 
   const releaseGlobalDraft = () => {
     if (typeof window === 'undefined') {
@@ -116,6 +123,7 @@ export default function CommunityNewPage() {
 
       if (typeof globalWindow.motionVideoDraftDuration === 'number') {
         setVideoDurationMs(globalWindow.motionVideoDraftDuration);
+        setTrimEnd(globalWindow.motionVideoDraftDuration);
       }
 
       setPrefillAvailable(true);
@@ -125,6 +133,87 @@ export default function CommunityNewPage() {
       clearOwnedPreviewUrl();
     };
   }, []);
+
+  useEffect(() => {
+    if (!videoRef.current || !videoPreviewUrl) {
+      return;
+    }
+
+    const video = videoRef.current;
+    let isDurationLoaded = false;
+
+    const checkDuration = () => {
+      const duration = video.duration;
+      if (isFinite(duration) && !isNaN(duration) && duration > 0 && !isDurationLoaded) {
+        isDurationLoaded = true;
+        const durationMs = Math.round(duration * 1000);
+        setVideoDurationMs(durationMs);
+        setTrimEnd(durationMs);
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      checkDuration();
+    };
+
+    const handleLoadedData = () => {
+      checkDuration();
+    };
+
+    const handleDurationChange = () => {
+      checkDuration();
+    };
+
+    const handleCanPlay = () => {
+      if (video.readyState >= 2) {
+        checkDuration();
+      }
+    };
+
+    video.load();
+    video.currentTime = 0.1;
+    
+    const timeoutIds = [
+      setTimeout(() => {
+        if (video.readyState >= 1) {
+          checkDuration();
+        }
+      }, 100),
+      setTimeout(() => {
+        if (video.readyState >= 1 && !isDurationLoaded) {
+          checkDuration();
+        }
+      }, 500),
+      setTimeout(() => {
+        if (video.readyState >= 1 && !isDurationLoaded) {
+          const wasPlaying = !video.paused;
+          if (!wasPlaying) {
+            video.play().then(() => {
+              video.pause();
+              checkDuration();
+            }).catch(() => {
+              checkDuration();
+            });
+          } else {
+            checkDuration();
+          }
+        }
+      }, 1000),
+    ];
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('durationchange', handleDurationChange);
+    video.addEventListener('canplay', handleCanPlay);
+
+    return () => {
+      timeoutIds.forEach(id => clearTimeout(id));
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('loadeddata', handleLoadedData);
+      video.removeEventListener('durationchange', handleDurationChange);
+      video.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [videoPreviewUrl]);
 
   const clearPrefill = () => {
     if (typeof window !== 'undefined') {
@@ -149,33 +238,119 @@ export default function CommunityNewPage() {
     }
 
     setVideoBlob(file);
+    originalVideoBlobRef.current = file;
     setVideoSize(file.size);
     setVideoDurationMs(null);
     setVideoUrl('');
     setVideoKey('');
+    setIsEditing(false);
+    setTrimStart(0);
+    setTrimEnd(0);
 
     const objectUrl = URL.createObjectURL(file);
     updatePreviewUrl(objectUrl, true);
-
-    const tempVideo = document.createElement('video');
-    tempVideo.preload = 'metadata';
-    tempVideo.src = objectUrl;
-    tempVideo.onloadedmetadata = () => {
-      if (!isNaN(tempVideo.duration)) {
-        setVideoDurationMs(Math.round(tempVideo.duration * 1000));
-      }
-    };
-  };
+      };
 
   const handleClearVideo = () => {
     setVideoBlob(null);
+    originalVideoBlobRef.current = null;
     setVideoUrl('');
     setVideoKey('');
     setVideoSize(null);
     setVideoDurationMs(null);
     updatePreviewUrl('', false);
+    setIsEditing(false);
+    setTrimStart(0);
+    setTrimEnd(0);
 
     releaseGlobalDraft();
+  };
+
+  const handleStartEditing = () => {
+    if (!videoBlob || !videoDurationMs) return;
+    setIsEditing(true);
+    setTrimStart(0);
+    setTrimEnd(videoDurationMs);
+  };
+
+  const handleCancelEditing = () => {
+    setIsEditing(false);
+    setTrimStart(0);
+    if (videoDurationMs) {
+      setTrimEnd(videoDurationMs);
+    }
+  };
+
+  const handleTrimVideo = async () => {
+    if (!videoBlob || !videoDurationMs || !videoRef.current) {
+      return;
+    }
+
+    if (trimStart >= trimEnd) {
+      alert('시작 시간은 끝 시간보다 작아야 합니다.');
+      return;
+    }
+
+    try {
+      setIsTrimming(true);
+      const video = videoRef.current;
+      const startTime = trimStart / 1000;
+      const endTime = trimEnd / 1000;
+      const duration = endTime - startTime;
+
+      video.currentTime = startTime;
+      await new Promise((resolve) => {
+        video.onseeked = resolve;
+      });
+
+      const stream = (video as any).captureStream?.() || new MediaStream();
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp8,opus',
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      return new Promise<void>((resolve, reject) => {
+        mediaRecorder.onstop = () => {
+          const trimmedBlob = new Blob(chunks, { type: 'video/webm' });
+          setVideoBlob(trimmedBlob);
+          setVideoSize(trimmedBlob.size);
+          setVideoDurationMs(Math.round(duration * 1000));
+          
+          const newUrl = URL.createObjectURL(trimmedBlob);
+          updatePreviewUrl(newUrl, true);
+          
+          setIsEditing(false);
+          setIsTrimming(false);
+          resolve();
+        };
+
+        mediaRecorder.onerror = (error) => {
+          console.error('영상 자르기 실패:', error);
+          alert('영상 자르기에 실패했습니다.');
+          setIsTrimming(false);
+          reject(error);
+        };
+
+        video.play();
+        mediaRecorder.start();
+
+        setTimeout(() => {
+          video.pause();
+          mediaRecorder.stop();
+          stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+        }, duration * 1000);
+      });
+    } catch (error) {
+      console.error('영상 자르기 실패:', error);
+      alert('영상 자르기에 실패했습니다.');
+      setIsTrimming(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -443,8 +618,12 @@ export default function CommunityNewPage() {
                 }}
               >
                 <video
+                  ref={videoRef}
                   src={videoPreviewUrl}
                   controls
+                  preload="metadata"
+                  muted
+                  playsInline
                   style={{ width: '100%', borderRadius: '8px', backgroundColor: '#000' }}
                 />
                 <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.875rem', color: '#4b5563' }}>
@@ -452,21 +631,248 @@ export default function CommunityNewPage() {
                   {videoDurationMs && <span>길이: {Math.round(videoDurationMs / 1000)}초</span>}
                   {videoBlob && <span>출처: 로컬 업로드</span>}
                 </div>
-                <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={handleClearVideo}
-                    type="button"
-                    style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '8px',
-                      border: '1px solid #d1d5db',
-                      backgroundColor: 'white',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    영상 초기화
-                  </button>
-                </div>
+                
+                {!isEditing ? (
+                  <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {videoDurationMs ? (
+                      <button
+                        onClick={handleStartEditing}
+                        type="button"
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid #d1d5db',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        간단 편집 (자르기)
+                      </button>
+                    ) : (
+                      <div style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                        영상 정보를 불러오는 중...
+                      </div>
+                    )}
+                    <button
+                      onClick={handleClearVideo}
+                      type="button"
+                      style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '8px',
+                        border: '1px solid #d1d5db',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      영상 초기화
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e40af' }}>
+                          시작: {Math.round(trimStart / 1000)}초
+                        </div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e40af' }}>
+                          끝: {Math.round(trimEnd / 1000)}초
+                        </div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e40af' }}>
+                          길이: {Math.round((trimEnd - trimStart) / 1000)}초
+                        </div>
+                      </div>
+                      
+                      <div style={{ position: 'relative', width: '100%', height: '60px', marginBottom: '0.5rem' }}>
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: 0,
+                            right: 0,
+                            height: '6px',
+                            backgroundColor: '#cbd5e1',
+                            borderRadius: '3px',
+                            transform: 'translateY(-50%)',
+                          }}
+                        />
+                        
+                        {videoDurationMs && videoDurationMs > 0 && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: `${(trimStart / videoDurationMs) * 100}%`,
+                              width: `${((trimEnd - trimStart) / videoDurationMs) * 100}%`,
+                              height: '6px',
+                              backgroundColor: '#3b82f6',
+                              borderRadius: '3px',
+                              transform: 'translateY(-50%)',
+                            }}
+                          />
+                        )}
+                        
+                        <input
+                          type="range"
+                          min={0}
+                          max={videoDurationMs || 0}
+                          value={trimStart}
+                          step={100}
+                          onChange={(e) => {
+                            const start = Number(e.target.value);
+                            if (start < trimEnd && videoDurationMs) {
+                              setTrimStart(start);
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = start / 1000;
+                              }
+                            }
+                          }}
+                          onInput={(e) => {
+                            const start = Number((e.target as HTMLInputElement).value);
+                            if (start < trimEnd && videoDurationMs) {
+                              setTrimStart(start);
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = start / 1000;
+                              }
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: 0,
+                            width: videoDurationMs ? `${((trimStart + (trimEnd - trimStart) / 2) / videoDurationMs) * 100}%` : '50%',
+                            height: '40px',
+                            margin: 0,
+                            padding: 0,
+                            opacity: 0,
+                            cursor: 'pointer',
+                            transform: 'translateY(-50%)',
+                            zIndex: 3,
+                          }}
+                        />
+                        
+                        <input
+                          type="range"
+                          min={0}
+                          max={videoDurationMs || 0}
+                          value={trimEnd}
+                          step={100}
+                          onChange={(e) => {
+                            const end = Number(e.target.value);
+                            if (end > trimStart && videoDurationMs) {
+                              setTrimEnd(end);
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = end / 1000;
+                              }
+                            }
+                          }}
+                          onInput={(e) => {
+                            const end = Number((e.target as HTMLInputElement).value);
+                            if (end > trimStart && videoDurationMs) {
+                              setTrimEnd(end);
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = end / 1000;
+                              }
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: videoDurationMs ? `${((trimStart + (trimEnd - trimStart) / 2) / videoDurationMs) * 100}%` : '50%',
+                            width: videoDurationMs ? `${((videoDurationMs - (trimStart + (trimEnd - trimStart) / 2)) / videoDurationMs) * 100}%` : '50%',
+                            height: '40px',
+                            margin: 0,
+                            padding: 0,
+                            opacity: 0,
+                            cursor: 'pointer',
+                            transform: 'translateY(-50%)',
+                            zIndex: 3,
+                          }}
+                        />
+                        
+                        {videoDurationMs && videoDurationMs > 0 && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: `${(trimStart / videoDurationMs) * 100}%`,
+                              width: '16px',
+                              height: '16px',
+                              backgroundColor: '#3b82f6',
+                              border: '2px solid white',
+                              borderRadius: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              pointerEvents: 'none',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              zIndex: 4,
+                            }}
+                          />
+                        )}
+                        
+                        {videoDurationMs && videoDurationMs > 0 && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: `${(trimEnd / videoDurationMs) * 100}%`,
+                              width: '16px',
+                              height: '16px',
+                              backgroundColor: '#3b82f6',
+                              border: '2px solid white',
+                              borderRadius: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              pointerEvents: 'none',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              zIndex: 4,
+                            }}
+                          />
+                        )}
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                        <span>0초</span>
+                        <span>{videoDurationMs ? `${Math.round(videoDurationMs / 1000)}초` : '0초'}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={handleTrimVideo}
+                        disabled={isTrimming || trimStart >= trimEnd}
+                        type="button"
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: isTrimming || trimStart >= trimEnd ? '#9ca3af' : '#10b981',
+                          color: 'white',
+                          cursor: isTrimming || trimStart >= trimEnd ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {isTrimming ? '자르는 중...' : '적용'}
+                      </button>
+                      <button
+                        onClick={handleCancelEditing}
+                        disabled={isTrimming}
+                        type="button"
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid #d1d5db',
+                          backgroundColor: 'white',
+                          cursor: isTrimming ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p style={{ marginTop: '0.5rem', color: '#9ca3af', fontSize: '0.875rem' }}>
@@ -512,6 +918,7 @@ export default function CommunityNewPage() {
           </div>
         </div>
       </div>
+
     </>
   );
 }
