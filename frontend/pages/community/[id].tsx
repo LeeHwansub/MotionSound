@@ -2,27 +2,16 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchPost, likePost, incrementViewCount, Post } from '../../lib/api/posts';
-
-const getUserId = (): string => {
-  if (typeof window === 'undefined') {
-    return 'anonymous';
-  }
-  let userId = localStorage.getItem('motionSound_userId');
-  if (!userId) {
-    userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('motionSound_userId', userId);
-  }
-  return userId;
-};
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function PostDetailPage() {
   const router = useRouter();
   const { id } = router.query;
+  const { user, isAuthenticated, login } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLiking, setIsLiking] = useState(false);
   const viewCountIncrementedRef = useRef<string | null>(null);
-  const userId = useMemo(() => getUserId(), []);
 
   useEffect(() => {
     if (id && typeof id === 'string') {
@@ -71,9 +60,16 @@ export default function PostDetailPage() {
       return;
     }
 
+    if (!isAuthenticated) {
+      if (confirm('로그인이 필요합니다. 로그인하시겠습니까?')) {
+        login();
+      }
+      return;
+    }
+
     try {
       setIsLiking(true);
-      const updatedPost = await likePost(id, userId);
+      const updatedPost = await likePost(id);
       setPost(updatedPost);
     } catch (error) {
       console.error('좋아요 실패:', error);
@@ -84,8 +80,11 @@ export default function PostDetailPage() {
   };
 
   const isLiked = useMemo(() => {
-    return post?.likedBy?.includes(userId) || false;
-  }, [post, userId]);
+    if (!user || !post?.likedBy) {
+      return false;
+    }
+    return post.likedBy.includes(user._id);
+  }, [post, user]);
 
   const resolvedVideoUrl = useMemo(() => {
     if (!post) {

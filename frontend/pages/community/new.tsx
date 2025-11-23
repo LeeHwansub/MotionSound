@@ -3,6 +3,7 @@ import { useEffect, useState, ChangeEvent, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { createPost } from '../../lib/api/posts';
 import { uploadVideo } from '../../lib/api/videos';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface PendingPostData {
   title?: string;
@@ -21,6 +22,7 @@ type MotionVideoWindow = typeof window & {
 
 export default function CommunityNewPage() {
   const router = useRouter();
+  const { user, isAuthenticated, login, loading: authLoading } = useAuth();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -33,7 +35,6 @@ export default function CommunityNewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [prefillAvailable, setPrefillAvailable] = useState(false);
   const ownedPreviewUrlRef = useRef<string | null>(null);
-  const currentUserId = 'user1';
   
   const [isEditing, setIsEditing] = useState(false);
   const [trimStart, setTrimStart] = useState(0);
@@ -353,7 +354,24 @@ export default function CommunityNewPage() {
     }
   };
 
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      if (confirm('로그인이 필요합니다. 로그인하시겠습니까?')) {
+        login();
+      } else {
+        router.push('/community');
+      }
+    }
+  }, [authLoading, isAuthenticated, login, router]);
+
   const handleSubmit = async () => {
+    if (!isAuthenticated) {
+      if (confirm('로그인이 필요합니다. 로그인하시겠습니까?')) {
+        login();
+      }
+      return;
+    }
+
     if (!title.trim() || !content.trim()) {
       alert('제목과 내용을 입력해주세요.');
       return;
@@ -377,7 +395,6 @@ export default function CommunityNewPage() {
       await createPost({
         title: title.trim(),
         content: content.trim(),
-        author: currentUserId,
         isPublic,
         videoUrl: finalVideoUrl || undefined,
         videoKey: finalVideoKey || undefined,
@@ -562,7 +579,7 @@ export default function CommunityNewPage() {
                   alignItems: 'center',
                 }}
               >
-                <span>{currentUserId}</span>
+                <span>{user?.name || user?.email || '익명'}</span>
               </div>
             </div>
             <div>
