@@ -19,12 +19,12 @@ export default function Home() {
   const [recordingName, setRecordingName] = useState('');
   const [recordingNote, setRecordingNote] = useState<Note | null>(null);
   const [audioFileUrl, setAudioFileUrl] = useState<string>('');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isAudioUploading, setIsAudioUploading] = useState(false);
   
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const [audioEngineInitialized, setAudioEngineInitialized] = useState(false);
 
-  // 영상 녹화 관련 상태
   const [isVideoRecording, setIsVideoRecording] = useState(false);
   const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
@@ -104,11 +104,30 @@ export default function Home() {
   };
 
   const handleStopRecording = async () => {
-    const pattern = await stopRecording(audioFileUrl || undefined);
+    let finalAudioUrl: string | undefined;
+    
+    if (audioFile) {
+      try {
+        setIsAudioUploading(true);
+        const result = await uploadAudio(audioFile);
+        finalAudioUrl = result.url;
+      } catch (error) {
+        console.error('오디오 업로드 실패:', error);
+        alert('오디오 업로드에 실패했습니다. 모션 패턴은 저장되지만 오디오는 포함되지 않습니다.');
+      } finally {
+        setIsAudioUploading(false);
+      }
+    }
+    
+    const pattern = await stopRecording(finalAudioUrl);
     if (pattern) {
       setRecordingName('');
       setRecordingNote(null);
       setAudioFileUrl('');
+      setAudioFile(null);
+      if (audioFileUrl && audioFileUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(audioFileUrl);
+      }
       alert(`모션 패턴 "${pattern.name}"이 저장되었습니다.`);
     }
   };
@@ -124,21 +143,13 @@ export default function Home() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      try {
-        setIsAudioUploading(true);
-        const result = await uploadAudio(file);
-        setAudioFileUrl(result.url);
-        alert('오디오 등록 되었습니다.');
-      } catch (error) {
-        console.error('오디오 업로드 실패:', error);
-        alert('오디오 업로드에 실패했습니다.');
-      } finally {
-        setIsAudioUploading(false);
-      }
+      const localUrl = URL.createObjectURL(file);
+      setAudioFile(file);
+      setAudioFileUrl(localUrl);
+      alert('오디오 파일이 선택되었습니다. 모션 캡처 후 저장 시 R2에 업로드됩니다.');
     }
   };
 
-  // 영상 녹화 시작
   const handleStartVideoRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -187,14 +198,12 @@ export default function Home() {
     }
   };
 
-  // 영상 녹화 중지
   const handleStopVideoRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
   };
 
-  // 영상 다운로드
   const handleDownloadVideo = () => {
     if (recordedVideoBlob) {
       const url = URL.createObjectURL(recordedVideoBlob);
@@ -208,7 +217,6 @@ export default function Home() {
     }
   };
 
-  // 커뮤니티에 등록
   const handleRegisterToCommunity = async () => {
     if (!recordedVideoBlob || !videoName.trim()) {
       alert('영상 이름을 입력해주세요.');
@@ -279,9 +287,8 @@ export default function Home() {
           style={{
             maxWidth: '1200px',
             margin: '0 auto',
-          }}
-        >
-          {/* 헤더 */}
+            }}
+          >
           <header style={{ marginBottom: '32px', textAlign: 'center' }}>
             <h1 style={{ fontSize: '32px', marginBottom: '8px', color: '#111827' }}>
               Motion Sound
@@ -291,7 +298,6 @@ export default function Home() {
             </p>
           </header>
 
-          {/* 메인 컨텐츠 영역 */}
           <div
             style={{
               display: 'grid',
@@ -300,7 +306,6 @@ export default function Home() {
               marginBottom: '24px',
             }}
           >
-            {/* 모션 캡처 영역 */}
             <div
               style={{
                 backgroundColor: 'white',
@@ -367,7 +372,6 @@ export default function Home() {
               />
             </div>
 
-            {/* 모션 시각화 영역 */}
             <div
               style={{
                 backgroundColor: 'white',
@@ -383,7 +387,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 모션 패턴 캡처 영역 */}
           <div
             style={{
               backgroundColor: 'white',
@@ -634,7 +637,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* 사운드 제어 영역 */}
           <div
             style={{
               backgroundColor: 'white',
@@ -648,7 +650,6 @@ export default function Home() {
               사운드 제어
             </h2>
             
-            {/* 음표 선택 */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
                 기준 음표 선택
@@ -715,7 +716,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 사운드 제어 버튼 */}
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               {!isInitialized ? (
                 <button
@@ -763,7 +763,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* 모션 데이터 디버그 영역 */}
           {motionData && (
             <div
               style={{
@@ -794,7 +793,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* 영상 녹화 모달 */}
       {showVideoModal && recordedVideoUrl && (
         <div
           style={{
