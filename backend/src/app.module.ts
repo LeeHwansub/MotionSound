@@ -5,6 +5,7 @@ import { MotionPatternModule } from './modules/motion-pattern/motion-pattern.mod
 import { PerformanceModule } from './modules/performance/performance.module';
 import { PostModule } from './modules/post/post.module';
 import { VideoModule } from './modules/video/video.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { VideoModule } from './modules/video/video.module';
     PerformanceModule,
     PostModule,
     VideoModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],
