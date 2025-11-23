@@ -11,6 +11,7 @@ import {
 import { MotionPatternService } from './motion-pattern.service';
 import { CreateMotionPatternDto } from './dto/create-motion-pattern.dto';
 import { UpdateMotionPatternDto } from './dto/update-motion-pattern.dto';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('patterns')
 export class MotionPatternController {
@@ -24,12 +25,14 @@ export class MotionPatternController {
     return this.motionPatternService.create(dto);
   }
 
+  @Public()
   @Get()
   findAll() {
     this.logger.log('GET /patterns 요청 수신');
     return this.motionPatternService.findAll();
   }
 
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.motionPatternService.findOne(id);
