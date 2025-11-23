@@ -78,12 +78,33 @@ export const useMotionPattern = (
       for (const pattern of patterns) {
         if (pattern.audioUrl && !audioBufferCacheRef.current.has(pattern.audioUrl)) {
           try {
-            const response = await fetch(pattern.audioUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            audioBufferCacheRef.current.set(pattern.audioUrl, audioBuffer);
+            if (pattern.audioUrl.startsWith('blob:')) {
+              const response = await fetch(pattern.audioUrl);
+              const arrayBuffer = await response.arrayBuffer();
+              const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+              audioBufferCacheRef.current.set(pattern.audioUrl, audioBuffer);
+            } else {
+              // R2 URL인 경우 CORS 처리
+              const response = await fetch(pattern.audioUrl, {
+                mode: 'cors',
+                credentials: 'omit',
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              
+              const arrayBuffer = await response.arrayBuffer();
+              const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+              audioBufferCacheRef.current.set(pattern.audioUrl, audioBuffer);
+            }
           } catch (error) {
-            console.error(`오디오 파일 프리로드 실패 (${pattern.name}):`, error);
+            // CORS 오류는 조용히 처리 (R2 버킷 CORS 설정 필요)
+            if (error instanceof TypeError && (error.message.includes('CORS') || error.message.includes('Failed to fetch'))) {
+              console.warn(`오디오 파일 로드 실패 (${pattern.name}): R2 버킷 CORS 설정이 필요하거나 파일이 없을 수 있습니다.`);
+            } else {
+              console.error(`오디오 파일 프리로드 실패 (${pattern.name}):`, error);
+            }
           }
         }
       }
