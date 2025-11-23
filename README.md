@@ -161,10 +161,12 @@ motion-sound/
 
 ## 5. 주요 기능 요약
 
-- **회원가입 / 로그인** (Google OAuth + JWT 기반 인증)
-  - Google OAuth를 통한 소셜 로그인
+- **회원가입 / 로그인** (OAuth + JWT 기반 인증)
+  - Google, Kakao, Naver OAuth를 통한 소셜 로그인
   - JWT 토큰 기반 인증
-  - 최소 정보 수집 (이메일만)
+  - 최소 정보 수집 (이메일 또는 사용자 ID만)
+  - 인증 미들웨어 (Guard)를 통한 API 보호
+  - Public 데코레이터로 공개 엔드포인트 지정
 - **실시간 모션 인식** (MediaPipe Pose, Hands, FaceMesh)
   - 포즈 인식: 33개 랜드마크 포인트 (전신 골격 구조)
   - 손 인식: 양손 각 21개 랜드마크 포인트 (손가락 관절)
@@ -229,10 +231,14 @@ motion-sound/
 | `GET` | `/posts/:id` | 특정 게시물 조회 |
 | `PATCH` | `/posts/:id` | 게시물 업데이트 |
 | `DELETE` | `/posts/:id` | 게시물 삭제 |
-| `POST` | `/posts/:id/like` | 게시물 좋아요 토글 (userId 필요) |
+| `POST` | `/posts/:id/like` | 게시물 좋아요 토글 (JWT 토큰에서 사용자 정보 자동 추출) |
 | `POST` | `/posts/:id/view` | 게시물 조회수 증가 |
 | `GET` | `/auth/google` | Google OAuth 로그인 시작 |
 | `GET` | `/auth/google/callback` | Google OAuth 콜백 처리 |
+| `GET` | `/auth/kakao` | Kakao OAuth 로그인 시작 |
+| `GET` | `/auth/kakao/callback` | Kakao OAuth 콜백 처리 |
+| `GET` | `/auth/naver` | Naver OAuth 로그인 시작 |
+| `GET` | `/auth/naver/callback` | Naver OAuth 콜백 처리 |
 | `GET` | `/auth/me` | 현재 로그인한 사용자 정보 조회 (JWT 필요) |
 
 ---
@@ -285,6 +291,15 @@ FRONTEND_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
+
+# Kakao OAuth 설정
+KAKAO_CLIENT_ID=your-kakao-rest-api-key
+KAKAO_CALLBACK_URL=http://localhost:4000/auth/kakao/callback
+
+# Naver OAuth 설정
+NAVER_CLIENT_ID=your-naver-client-id
+NAVER_CLIENT_SECRET=your-naver-client-secret
+NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
 ```
 
 > **참고**: `.env.example` 파일을 복사하여 `.env`를 생성하고 필요한 값들을 수정하세요.
@@ -360,11 +375,18 @@ GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
 - **게시물 상세**: 영상 재생, 좋아요 버튼, 작성자 정보 표시
 
 #### 인증 시스템
-- **Google OAuth**: Google 계정을 통한 소셜 로그인
+- **다중 OAuth 지원**: Google, Kakao, Naver 소셜 로그인
 - **JWT 토큰**: 로그인 후 JWT 토큰 발급 및 검증
-- **최소 정보 수집**: 이메일 주소만 수집 (프라이버시 보호)
-- **사용자 관리**: MongoDB에 사용자 정보 저장
-- **인증 가드**: JWT 기반 API 엔드포인트 보호
+- **최소 정보 수집**: 이메일 또는 사용자 ID만 수집 (프라이버시 보호)
+- **사용자 관리**: MongoDB에 사용자 정보 저장 (provider별 구분)
+- **인증 미들웨어**: 
+  - 전역 JWT Guard로 모든 엔드포인트 보호
+  - Public 데코레이터로 공개 엔드포인트 지정
+  - CurrentUser 데코레이터로 인증된 사용자 정보 자동 추출
+- **프론트엔드 인증**: 
+  - AuthContext를 통한 전역 인증 상태 관리
+  - API 요청 시 JWT 토큰 자동 포함
+  - OAuth 콜백 후 자동 사용자 정보 갱신
 
 #### 테스트 환경
 - **Jest 설정**: 단위 테스트 및 통합 테스트 환경 구축
@@ -383,7 +405,80 @@ GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
 
 ## 11. 개발 중 문제점 및 해결 방안
 
-### 문제 1: MediaPipe Holistic의 onResults 콜백 미작동
+### 문제 1: OAuth 콜백 후 사용자 정보 자동 갱신 실패
+
+**문제점:**
+- OAuth 로그인 후 콜백 페이지에서 토큰만 저장하고 리다이렉트
+- 사용자가 새로고침해야만 로그인 상태가 반영됨
+- AuthContext가 자동으로 사용자 정보를 갱신하지 않음
+
+**해결 방안:**
+- 콜백 페이지에서 토큰 저장 후 `refreshUser()` 호출
+- 사용자 정보를 즉시 불러온 후 리다이렉트하여 새로고침 없이 로그인 상태 반영
+
+```typescript
+// auth/callback.tsx
+useEffect(() => {
+  const { token } = router.query;
+  if (token && typeof token === 'string') {
+    saveToken(token);
+    refreshUser().then(() => {
+      router.push('/');
+    });
+  }
+}, [router, refreshUser]);
+```
+
+---
+
+### 문제 2: 카카오 OAuth 프로필 정보 최소화
+
+**문제점:**
+- 카카오 OAuth에서 불필요한 프로필 정보를 요청
+- 사용자 프라이버시 보호 필요
+
+**해결 방안:**
+- `scope: []`로 설정하여 최소 정보만 요청
+- 사용자 ID만으로 사용자 식별
+- 이메일이나 닉네임이 없어도 동작하도록 처리
+
+```typescript
+// kakao.strategy.ts
+super({
+  clientID: configService.get<string>('KAKAO_CLIENT_ID'),
+  callbackURL: configService.get<string>('KAKAO_CALLBACK_URL'),
+  scope: [], // 최소 정보만 요청
+});
+```
+
+---
+
+### 문제 3: 네이버 OAuth 사용자 이름 표시 문제
+
+**문제점:**
+- 네이버 로그인 후 사용자 이름이 `네이버사용자_UJJCiXWBWPYRgAv00LNGZ4uFCxcKN4oOagr1WjWswjw` 같은 형식으로 표시
+- 실제 회원 이름을 가져오지 못함
+
+**해결 방안:**
+- 네이버 프로필에서 `name` 필드를 우선적으로 사용
+- 이름이 없으면 닉네임, 이메일 앞부분, 기본값 순으로 처리
+- 기존 사용자의 기본 이름 형식이면 실제 이름으로 업데이트
+
+```typescript
+// auth.service.ts
+const name = _json?.name || _json?.nickname || profile.displayName;
+let userName = name;
+if (!userName && email) {
+  userName = email.split('@')[0];
+}
+if (!userName) {
+  userName = `네이버사용자_${id.substring(0, 8)}`;
+}
+```
+
+---
+
+### 문제 4: MediaPipe Holistic의 onResults 콜백 미작동
 
 **문제점:**
 - MediaPipe Holistic을 사용하여 포즈, 손, 얼굴을 한 번에 인식하려 했으나, `onResults` 콜백이 호출되지 않음
@@ -735,4 +830,6 @@ const seekVideo = async (video: HTMLVideoElement, time: number) => {
 - [x] 연주 공유 기능 (비디오 업로드 및 공유)
 - [x] 좋아요 기능 (1계정당 1게시물에 1개)
 - [x] 조회수 기능
+- [x] OAuth 인증 시스템 (Google, Kakao, Naver)
+- [x] JWT 기반 인증 미들웨어
 - [ ] 실시간 협연 모드
