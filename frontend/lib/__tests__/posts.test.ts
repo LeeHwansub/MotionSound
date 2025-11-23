@@ -163,6 +163,7 @@ describe('Posts API', () => {
         isPublic: true,
         viewCount: 0,
         likeCount: 1,
+        likedBy: ['user1'],
         createdAt: '2024-01-01',
         updatedAt: '2024-01-01',
       }
@@ -172,12 +173,38 @@ describe('Posts API', () => {
         json: async () => mockPost,
       })
 
-      const result = await likePost('1')
+      const result = await likePost('1', 'user1')
       expect(global.fetch).toHaveBeenCalledWith(`${API_BASE}/posts/1/like`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'user1' }),
       })
       expect(result.likeCount).toBe(1)
+      expect(result.likedBy).toContain('user1')
+    })
+
+    it('이미 좋아요를 누른 게시물에서 좋아요를 취소해야 함', async () => {
+      const mockPost = {
+        _id: '1',
+        title: 'Post 1',
+        content: 'Content 1',
+        author: 'author1',
+        isPublic: true,
+        viewCount: 0,
+        likeCount: 0,
+        likedBy: [],
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+      }
+
+      ;(global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => mockPost,
+      })
+
+      const result = await likePost('1', 'user1')
+      expect(result.likeCount).toBe(0)
+      expect(result.likedBy).not.toContain('user1')
     })
   })
 

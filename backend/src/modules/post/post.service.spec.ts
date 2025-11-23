@@ -12,6 +12,7 @@ const mockPost = {
   isPublic: true,
   viewCount: 0,
   likeCount: 0,
+  likedBy: [],
   save: jest.fn(),
 };
 
@@ -105,22 +106,51 @@ describe('PostService', () => {
     await expect(service.remove('post-id')).rejects.toThrow(NotFoundException);
   });
 
-  it('좋아요 수를 증가시켜야 한다', async () => {
-    const updatedPost = { ...mockPost, likeCount: 1 };
+  it('좋아요를 추가해야 한다', async () => {
+    const postWithoutLike = { ...mockPost, likedBy: [] };
+    const updatedPost = { ...mockPost, likeCount: 1, likedBy: ['user1'] };
+    
+    model.findById.mockReturnValue(execMock(postWithoutLike));
     model.findByIdAndUpdate.mockReturnValue(execMock(updatedPost));
     
-    const result = await service.incrementLikeCount('post-id');
+    const result = await service.toggleLike('post-id', 'user1');
+    expect(model.findById).toHaveBeenCalledWith('post-id');
     expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
       'post-id',
-      { $inc: { likeCount: 1 } },
+      {
+        $addToSet: { likedBy: 'user1' },
+        $inc: { likeCount: 1 },
+      },
       { new: true },
     );
     expect(result.likeCount).toBe(1);
+    expect(result.likedBy).toContain('user1');
   });
 
-  it('좋아요 증가 시 게시물이 없으면 예외를 발생시켜야 한다', async () => {
-    model.findByIdAndUpdate.mockReturnValue(execMock(null));
-    await expect(service.incrementLikeCount('missing')).rejects.toThrow(
+  it('좋아요를 취소해야 한다', async () => {
+    const postWithLike = { ...mockPost, likeCount: 1, likedBy: ['user1'] };
+    const updatedPost = { ...mockPost, likeCount: 0, likedBy: [] };
+    
+    model.findById.mockReturnValue(execMock(postWithLike));
+    model.findByIdAndUpdate.mockReturnValue(execMock(updatedPost));
+    
+    const result = await service.toggleLike('post-id', 'user1');
+    expect(model.findById).toHaveBeenCalledWith('post-id');
+    expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+      'post-id',
+      {
+        $pull: { likedBy: 'user1' },
+        $inc: { likeCount: -1 },
+      },
+      { new: true },
+    );
+    expect(result.likeCount).toBe(0);
+    expect(result.likedBy).not.toContain('user1');
+  });
+
+  it('좋아요 토글 시 게시물이 없으면 예외를 발생시켜야 한다', async () => {
+    model.findById.mockReturnValue(execMock(null));
+    await expect(service.toggleLike('missing', 'user1')).rejects.toThrow(
       NotFoundException,
     );
   });
