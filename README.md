@@ -161,7 +161,10 @@ motion-sound/
 
 ## 5. 주요 기능 요약
 
-- **회원가입 / 로그인** (JWT 기반 인증)
+- **회원가입 / 로그인** (Google OAuth + JWT 기반 인증)
+  - Google OAuth를 통한 소셜 로그인
+  - JWT 토큰 기반 인증
+  - 최소 정보 수집 (이메일만)
 - **실시간 모션 인식** (MediaPipe Pose, Hands, FaceMesh)
   - 포즈 인식: 33개 랜드마크 포인트 (전신 골격 구조)
   - 손 인식: 양손 각 21개 랜드마크 포인트 (손가락 관절)
@@ -273,6 +276,12 @@ CORS_ORIGIN=http://localhost:3000
 
 # Frontend 설정
 NEXT_PUBLIC_API_URL=http://localhost:4000
+FRONTEND_URL=http://localhost:3000
+
+# Google OAuth 설정
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
 ```
 
 > **참고**: `.env.example` 파일을 복사하여 `.env`를 생성하고 필요한 값들을 수정하세요.
