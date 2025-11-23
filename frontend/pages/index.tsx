@@ -10,11 +10,10 @@ import { Note, NOTE_NAMES, OCTAVE_RANGE, getNoteFrequency, DEFAULT_NOTE } from '
 import { AudioEngine } from '../lib/audio';
 import { MotionPattern } from '../lib/motionPattern';
 import { uploadAudio } from '../lib/api/videos';
-import { useAuth } from '../contexts/AuthContext';
+import { Header } from '../components/Header/Header';
 
 export default function Home() {
   const router = useRouter();
-  const { user, isAuthenticated, login, logout, loading: authLoading } = useAuth();
   const [motionData, setMotionData] = useState<MotionData | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Note>(DEFAULT_NOTE);
@@ -278,9 +277,10 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+      <Header />
       <main
         style={{
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - 80px)',
           padding: '24px',
           backgroundColor: '#f9fafb',
         }}
@@ -291,88 +291,14 @@ export default function Home() {
             margin: '0 auto',
             }}
           >
-          <header style={{ marginBottom: '32px', textAlign: 'center', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, right: 0 }}>
-              {!authLoading && (
-                isAuthenticated ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '14px', color: '#6b7280' }}>
-                      {user?.name || user?.email}
-                    </span>
-                    <button
-                      onClick={logout}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '500',
-                      }}
-                    >
-                      로그아웃
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => login('google')}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        backgroundColor: '#2563eb',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '500',
-                      }}
-                    >
-                      Google
-                    </button>
-                    <button
-                      onClick={() => login('kakao')}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        backgroundColor: '#FEE500',
-                        color: '#000000',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '500',
-                      }}
-                    >
-                      Kakao
-                    </button>
-                    <button
-                      onClick={() => login('naver')}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        backgroundColor: '#03C75A',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '500',
-                      }}
-                    >
-                      Naver
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
+          <div style={{ marginBottom: '32px', textAlign: 'center' }}>
             <h1 style={{ fontSize: '32px', marginBottom: '8px', color: '#111827' }}>
               Motion Sound
             </h1>
             <p style={{ fontSize: '16px', color: '#6b7280' }}>
               움직임이 곧 음악이 되는 시스템 - 모션 인식 프로토타입
             </p>
-          </header>
+          </div>
 
           <div
             style={{

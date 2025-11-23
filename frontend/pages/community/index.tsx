@@ -3,11 +3,10 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { fetchPosts, Post } from '../../lib/api/posts';
-import { useAuth } from '../../contexts/AuthContext';
+import { Header } from '../../components/Header/Header';
 
 export default function CommunityPage() {
   const router = useRouter();
-  const { user, isAuthenticated, login, loading: authLoading } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,9 +39,12 @@ export default function CommunityPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>로딩 중...</p>
-      </div>
+      <>
+        <Header />
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <p>로딩 중...</p>
+        </div>
+      </>
     );
   }
 
@@ -51,79 +53,30 @@ export default function CommunityPage() {
       <Head>
         <title>커뮤니티 - Motion Sound</title>
       </Head>
-
+      <Header />
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h1>커뮤니티</h1>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {!authLoading && (
-              isAuthenticated ? (
-                <>
-                  <span style={{ fontSize: '14px', color: '#6b7280' }}>
-                    {user?.name || user?.email}
-                  </span>
-                  <Link
-                    href="/community/new"
-                    style={{
-                      padding: '0.75rem 1.25rem',
-                      borderRadius: '8px',
-                      backgroundColor: '#2563eb',
-                      color: 'white',
-                      textDecoration: 'none',
-                      fontWeight: 500,
-                    }}
-                  >
-                    새 게시물 작성
-                  </Link>
-                </>
-              ) : (
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => login('google')}
-                    style={{
-                      padding: '0.75rem 1.25rem',
-                      borderRadius: '8px',
-                      backgroundColor: '#2563eb',
-                      color: 'white',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Google
-                  </button>
-                  <button
-                    onClick={() => login('kakao')}
-                    style={{
-                      padding: '0.75rem 1.25rem',
-                      borderRadius: '8px',
-                      backgroundColor: '#FEE500',
-                      color: '#000000',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Kakao
-                  </button>
-                  <button
-                    onClick={() => login('naver')}
-                    style={{
-                      padding: '0.75rem 1.25rem',
-                      borderRadius: '8px',
-                      backgroundColor: '#03C75A',
-                      color: 'white',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Naver
-                  </button>
-                </div>
-              )
-            )}
-          </div>
+          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>커뮤니티</h1>
+          <Link
+            href="/community/new"
+            style={{
+              padding: '0.75rem 1.25rem',
+              borderRadius: '8px',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              textDecoration: 'none',
+              fontWeight: 500,
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1d4ed8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+            }}
+          >
+            새 게시물 작성
+          </Link>
         </div>
 
         <div>
