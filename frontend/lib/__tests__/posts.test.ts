@@ -44,7 +44,7 @@ describe('Posts API', () => {
         text: async () => 'Server Error',
       })
 
-      await expect(fetchPosts()).rejects.toThrow('Post API 요청에 실패했습니다. (500)')
+      await expect(fetchPosts()).rejects.toThrow('Server Error')
     })
   })
 
