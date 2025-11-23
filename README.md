@@ -231,6 +231,9 @@ motion-sound/
 | `DELETE` | `/posts/:id` | 게시물 삭제 |
 | `POST` | `/posts/:id/like` | 게시물 좋아요 토글 (userId 필요) |
 | `POST` | `/posts/:id/view` | 게시물 조회수 증가 |
+| `GET` | `/auth/google` | Google OAuth 로그인 시작 |
+| `GET` | `/auth/google/callback` | Google OAuth 콜백 처리 |
+| `GET` | `/auth/me` | 현재 로그인한 사용자 정보 조회 (JWT 필요) |
 
 ---
 
