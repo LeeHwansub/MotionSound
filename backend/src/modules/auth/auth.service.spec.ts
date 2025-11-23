@@ -107,5 +107,156 @@ describe('AuthService', () => {
     expect(userModel.findById).toHaveBeenCalledWith('user-id');
     expect(result).toEqual(mockUser);
   });
+
+  describe('validateKakaoUser', () => {
+    it('새 카카오 사용자를 생성해야 한다', async () => {
+      userModel.findOne.mockReturnValue(execMock(null));
+      
+      const profile = {
+        id: 'kakao-id',
+        _json: { id: 'kakao-id' },
+      };
+
+      const result = await service.validateKakaoUser(profile);
+      expect(result).toBeDefined();
+      expect(result.email).toBe('kakao_kakao-id@kakao.com');
+      expect(result.provider).toBe('kakao');
+      expect(result.providerId).toBe('kakao-id');
+    });
+
+    it('기존 카카오 사용자를 반환해야 한다', async () => {
+      const kakaoUser = {
+        ...mockUser,
+        provider: 'kakao',
+        providerId: 'kakao-id',
+      };
+      userModel.findOne.mockReturnValue(execMock(kakaoUser));
+      
+      const profile = {
+        id: 'kakao-id',
+        _json: { id: 'kakao-id' },
+      };
+
+      const result = await service.validateKakaoUser(profile);
+      expect(result).toEqual(kakaoUser);
+    });
+
+    it('카카오 사용자 ID가 없으면 에러를 발생시켜야 한다', async () => {
+      const profile = {
+        _json: {},
+      };
+
+      await expect(service.validateKakaoUser(profile)).rejects.toThrow(
+        '카카오 사용자 ID를 가져올 수 없습니다.',
+      );
+    });
+  });
+
+  describe('validateNaverUser', () => {
+    it('새 네이버 사용자를 생성해야 한다', async () => {
+      userModel.findOne.mockReturnValue(execMock(null));
+      
+      const profile = {
+        id: 'naver-id',
+        _json: {
+          id: 'naver-id',
+          email: 'test@naver.com',
+          name: '테스트사용자',
+        },
+      };
+
+      const result = await service.validateNaverUser(profile);
+      expect(result).toBeDefined();
+      expect(result.email).toBe('test@naver.com');
+      expect(result.name).toBe('테스트사용자');
+      expect(result.provider).toBe('naver');
+      expect(result.providerId).toBe('naver-id');
+    });
+
+    it('이름이 없으면 이메일 앞부분을 사용해야 한다', async () => {
+      userModel.findOne.mockReturnValue(execMock(null));
+      
+      const profile = {
+        id: 'naver-id',
+        _json: {
+          id: 'naver-id',
+          email: 'testuser@naver.com',
+        },
+      };
+
+      const result = await service.validateNaverUser(profile);
+      expect(result.name).toBe('testuser');
+    });
+
+    it('이름과 이메일이 없으면 기본값을 사용해야 한다', async () => {
+      userModel.findOne.mockReturnValue(execMock(null));
+      
+      const profile = {
+        id: 'naver-id-very-long-string',
+        _json: {
+          id: 'naver-id-very-long-string',
+        },
+      };
+
+      const result = await service.validateNaverUser(profile);
+      expect(result.name).toBe('네이버사용자_naver-id');
+      expect(result.email).toBe('naver_naver-id-very-long-string@naver.com');
+    });
+
+    it('기존 네이버 사용자를 반환해야 한다', async () => {
+      const naverUser = {
+        ...mockUser,
+        provider: 'naver',
+        providerId: 'naver-id',
+        name: '기존사용자',
+      };
+      userModel.findOne.mockReturnValue(execMock(naverUser));
+      
+      const profile = {
+        id: 'naver-id',
+        _json: {
+          id: 'naver-id',
+          email: 'test@naver.com',
+          name: '새이름',
+        },
+      };
+
+      const result = await service.validateNaverUser(profile);
+      expect(result).toEqual(naverUser);
+    });
+
+    it('기본 이름 형식이면 실제 이름으로 업데이트해야 한다', async () => {
+      const naverUser = {
+        ...mockUser,
+        provider: 'naver',
+        providerId: 'naver-id',
+        name: '네이버사용자_naver-i',
+        save: jest.fn().mockResolvedValue(true),
+      };
+      userModel.findOne.mockReturnValue(execMock(naverUser));
+      
+      const profile = {
+        id: 'naver-id',
+        _json: {
+          id: 'naver-id',
+          name: '실제이름',
+        },
+      };
+
+      const result = await service.validateNaverUser(profile);
+      expect(naverUser.save).toHaveBeenCalled();
+      expect(result.name).toBe('실제이름');
+    });
+
+    it('네이버 사용자 ID가 없으면 에러를 발생시켜야 한다', async () => {
+      const profile = {
+        _json: {},
+      };
+
+      await expect(service.validateNaverUser(profile)).rejects.toThrow(
+        '네이버 사용자 ID를 가져올 수 없습니다.',
+      );
+    });
+  });
 });
 
