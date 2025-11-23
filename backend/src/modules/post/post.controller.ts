@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -41,8 +42,11 @@ export class PostController {
   }
 
   @Post(':id/like')
-  like(@Param('id') id: string) {
-    return this.postService.incrementLikeCount(id);
+  like(@Param('id') id: string, @Body() body: { userId: string }) {
+    if (!body.userId) {
+      throw new BadRequestException('userId가 필요합니다.');
+    }
+    return this.postService.toggleLike(id, body.userId);
   }
 
   @Post(':id/view')
