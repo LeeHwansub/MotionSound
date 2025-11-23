@@ -1,6 +1,13 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+function getAuthToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('auth_token');
+  }
+  return null;
+}
+
 export interface UploadMediaResponse {
   url: string;
   key: string;
@@ -12,8 +19,16 @@ export async function uploadVideo(file: Blob): Promise<UploadMediaResponse> {
   const formData = new FormData();
   formData.append('file', file, `record-${Date.now()}.webm`);
 
+  const token = getAuthToken();
+  const headers: HeadersInit = {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}/videos`, {
     method: 'POST',
+    headers,
     body: formData,
   });
 
@@ -32,8 +47,16 @@ export async function uploadAudio(file: File | Blob): Promise<UploadMediaRespons
     : `audio-${Date.now()}.mp3`;
   formData.append('file', file, fileName);
 
+  const token = getAuthToken();
+  const headers: HeadersInit = {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}/audios`, {
     method: 'POST',
+    headers,
     body: formData,
   });
 
