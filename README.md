@@ -167,6 +167,16 @@ motion-sound/
   - 최소 정보 수집 (이메일 또는 사용자 ID만)
   - 인증 미들웨어 (Guard)를 통한 API 보호
   - Public 데코레이터로 공개 엔드포인트 지정
+- **사용자 프로필 관리**
+  - 프로필 정보 조회 및 수정 (이름, 프로필 사진, 전화번호, 성별, 생년월일)
+  - 프로필 사진 업로드 (R2 저장소)
+  - 전화번호 SMS 인증 (AWS SNS)
+  - 사용자별 인증된 전화번호 관리
+- **Toast 알림 시스템**
+  - 전역 Toast 알림 컴포넌트
+  - 자동 사라짐 (기본 3초, 에러 5초)
+  - 중복 알림 방지
+  - 백엔드 에러 메시지 자동 파싱 및 표시
 - **실시간 모션 인식** (MediaPipe Pose, Hands, FaceMesh)
   - 포즈 인식: 33개 랜드마크 포인트 (전신 골격 구조)
   - 손 인식: 양손 각 21개 랜드마크 포인트 (손가락 관절)
@@ -197,10 +207,12 @@ motion-sound/
   - 게시물 목록 및 상세 페이지
 - **UI/UX 개선**
   - 공통 Header 컴포넌트 (모든 페이지에 적용)
+  - 프로필 사진 원형 표시 (Header)
   - 로고 SVG 파일 및 브랜딩
   - 전용 로그인 페이지 (`/login`)
   - 네비게이션 메뉴 (홈, 커뮤니티)
   - 현재 페이지 하이라이트
+  - Toast 알림으로 사용자 피드백 제공
 
 ---
 
@@ -248,6 +260,10 @@ motion-sound/
 | `GET` | `/auth/naver` | Naver OAuth 로그인 시작 |
 | `GET` | `/auth/naver/callback` | Naver OAuth 콜백 처리 |
 | `GET` | `/auth/me` | 현재 로그인한 사용자 정보 조회 (JWT 필요) |
+| `PATCH` | `/auth/me` | 사용자 프로필 정보 수정 (JWT 필요) |
+| `POST` | `/auth/me/profile-image` | 프로필 사진 업로드 (JWT 필요) |
+| `POST` | `/auth/phone/send-otp` | 전화번호 인증번호 전송 (JWT 필요) |
+| `POST` | `/auth/phone/verify-otp` | 전화번호 인증번호 검증 (JWT 필요) |
 
 ---
 
@@ -308,6 +324,18 @@ KAKAO_CALLBACK_URL=http://localhost:4000/auth/kakao/callback
 NAVER_CLIENT_ID=your-naver-client-id
 NAVER_CLIENT_SECRET=your-naver-client-secret
 NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
+
+# AWS SNS 설정 (전화번호 인증)
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+AWS_REGION=ap-northeast-2
+
+# R2 설정 (프로필 사진 저장)
+R2_ACCOUNT_ID=your-r2-account-id
+R2_ACCESS_KEY_ID=your-r2-access-key-id
+R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
+R2_BUCKET_NAME=your-r2-bucket-name
+R2_PUBLIC_URL=your-r2-public-url
 ```
 
 > **참고**: `.env.example` 파일을 복사하여 `.env`를 생성하고 필요한 값들을 수정하세요.
@@ -397,6 +425,7 @@ NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
   - 전역 JWT Guard로 모든 엔드포인트 보호
   - Public 데코레이터로 공개 엔드포인트 지정
   - CurrentUser 데코레이터로 인증된 사용자 정보 자동 추출
+  - CurrentUser 데코레이터에서 인증 실패 시 명확한 에러 메시지 제공
 - **프론트엔드 인증**: 
   - AuthContext를 통한 전역 인증 상태 관리
   - API 요청 시 JWT 토큰 자동 포함
@@ -406,6 +435,15 @@ NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
   - Google, Kakao, Naver 소셜 로그인 버튼
   - 브랜드 컬러 및 아이콘 적용
   - 이미 로그인한 경우 자동 리다이렉트
+- **사용자 프로필 관리**:
+  - 프로필 정보 조회 및 수정 (`/auth/me`)
+  - 프로필 사진 업로드 (R2 저장소)
+  - 전화번호, 성별, 생년월일 관리
+- **전화번호 SMS 인증**:
+  - AWS SNS를 통한 SMS 전송
+  - OTP 생성 및 검증 (5분 유효)
+  - 사용자별 인증된 전화번호 관리
+  - 한국 전화번호 포맷팅 및 fallback 처리
 
 #### UI/UX 개선
 - **공통 Header 컴포넌트**:
@@ -414,11 +452,23 @@ NAVER_CALLBACK_URL=http://localhost:4000/auth/naver/callback
   - 네비게이션 메뉴 (홈, 커뮤니티)
   - 현재 페이지 하이라이트
   - 로그인 상태에 따른 UI (사용자 정보 / 로그인 버튼)
+  - 프로필 사진 원형 표시 (있는 경우)
   - Sticky 포지션으로 스크롤 시 상단 고정
 - **로고 및 브랜딩**:
   - Motion Sound 브랜드 로고 (SVG)
   - 음표, 움직임 파형, 모션 인식 요소 포함
   - 그라데이션 적용
+- **Toast 알림 시스템**:
+  - 전역 Toast 컴포넌트 및 Context
+  - 자동 사라짐 (기본 3초, 에러 5초)
+  - 중복 알림 방지 로직
+  - 백엔드 에러 메시지 자동 파싱 및 표시
+  - 모든 alert/confirm을 toast로 대체
+- **에러 처리**:
+  - 백엔드 에러 응답 파싱 유틸리티
+  - NestJS 에러 형식 자동 처리
+  - ValidationPipe 배열 에러 처리
+  - 사용자 친화적인 에러 메시지 표시
 - **페이지 전환 최적화**:
   - 홈에서 커뮤니티로 이동 시 모션 인식 자동 중지
   - 라우터 이벤트를 통한 자동 정리
