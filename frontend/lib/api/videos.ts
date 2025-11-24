@@ -8,6 +8,45 @@ function getAuthToken(): string | null {
   return null;
 }
 
+export function getProxiedMediaUrl(url: string): string {
+  if (!url) return url;
+  
+  if (url.startsWith('blob:') || url.startsWith(API_BASE)) {
+    return url;
+  }
+
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+    
+    const audiosIndex = pathParts.findIndex(part => part === 'audios');
+    const videosIndex = pathParts.findIndex(part => part === 'videos');
+    
+    let key: string | null = null;
+    
+    if (audiosIndex !== -1) {
+      key = pathParts.slice(audiosIndex).join('/');
+    } else if (videosIndex !== -1) {
+      key = pathParts.slice(videosIndex).join('/');
+    } else if (pathParts.length > 0) {
+      const firstPart = pathParts[0];
+      if (firstPart !== 'audios' && firstPart !== 'videos') {
+        key = pathParts.slice(1).join('/');
+      } else {
+        key = pathParts.join('/');
+      }
+    }
+    
+    if (key) {
+      return `${API_BASE}/media/${key}`;
+    }
+  } catch (error) {
+    console.warn('URL 파싱 실패:', url, error);
+  }
+
+  return url;
+}
+
 export interface UploadMediaResponse {
   url: string;
   key: string;
