@@ -122,9 +122,6 @@ Motion Sound는 카메라 하나만 있으면 누구나 **'몸으로 연주'**�
 ![게시글 작성 페이지](docs/screenshots/community-new.png)
 > 비디오 업로드 및 게시물 작성
 
-#### 게시글 상세 페이지
-![게시글 상세 페이지](docs/screenshots/community-detail.png)
-> 게시물 상세 보기 및 좋아요 기능
 
 ## 2. 설치 및 실행
 
