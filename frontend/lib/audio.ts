@@ -9,6 +9,8 @@ export class AudioEngine {
   private audioContext: AudioContext | null = null;
   private oscillators: Map<string, OscillatorNode> = new Map();
   private gainNodes: Map<string, GainNode> = new Map();
+  private audioDestination: MediaStreamAudioDestinationNode | null = null;
+  private masterGainNode: GainNode | null = null;
   private config: Required<AudioConfig>;
 
   constructor(config: AudioConfig = {}) {
@@ -35,6 +37,11 @@ export class AudioEngine {
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
       }
+
+      this.audioDestination = this.audioContext.createMediaStreamDestination();
+      this.masterGainNode = this.audioContext.createGain();
+      this.masterGainNode.connect(this.audioDestination);
+      this.masterGainNode.connect(this.audioContext.destination);
     } catch (error) {
       console.error('AudioContext 초기화 실패:', error);
       throw new Error('오디오 컨텍스트를 초기화할 수 없습니다.');
@@ -66,7 +73,7 @@ export class AudioEngine {
     gainNode.gain.value = Math.max(0, Math.min(this.config.maxVolume, volume));
 
     oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
+    gainNode.connect(this.masterGainNode || this.audioContext.destination);
 
     oscillator.start();
 
@@ -131,7 +138,18 @@ export class AudioEngine {
     }
 
     try {
-      const response = await fetch(url);
+      const { getProxiedMediaUrl } = await import('./api/videos');
+      const proxiedUrl = getProxiedMediaUrl(url);
+      
+      console.log('오디오 파일 재생 시도:', { originalUrl: url, proxiedUrl });
+      
+      const response = await fetch(proxiedUrl);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
@@ -142,13 +160,16 @@ export class AudioEngine {
       gainNode.gain.value = Math.max(0, Math.min(this.config.maxVolume, volume));
 
       source.connect(gainNode);
-      gainNode.connect(this.audioContext.destination);
+      gainNode.connect(this.masterGainNode || this.audioContext.destination);
 
       source.start(0);
 
       return source;
     } catch (error) {
       console.error('오디오 파일 재생 실패:', error);
+      if (error instanceof Error) {
+        throw new Error(`오디오 파일을 재생할 수 없습니다: ${error.message}`);
+      }
       throw new Error('오디오 파일을 재생할 수 없습니다.');
     }
   }
@@ -162,5 +183,13 @@ export class AudioEngine {
 
   getAudioContext(): AudioContext | null {
     return this.audioContext;
+  }
+
+  getAudioStream(): MediaStream | null {
+    return this.audioDestination?.stream || null;
+  }
+
+  getMasterGainNode(): GainNode | null {
+    return this.masterGainNode;
   }
 }

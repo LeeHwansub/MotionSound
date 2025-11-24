@@ -15,6 +15,7 @@ import { Header } from '../components/Header/Header';
 export default function Home() {
   const router = useRouter();
   const [motionData, setMotionData] = useState<MotionData | null>(null);
+  const [isMotionRecognitionActive, setIsMotionRecognitionActive] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Note>(DEFAULT_NOTE);
   const [recordingName, setRecordingName] = useState('');
@@ -22,6 +23,7 @@ export default function Home() {
   const [audioFileUrl, setAudioFileUrl] = useState<string>('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isAudioUploading, setIsAudioUploading] = useState(false);
+  const [isSavingPattern, setIsSavingPattern] = useState(false);
   
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const [audioEngineInitialized, setAudioEngineInitialized] = useState(false);
@@ -43,6 +45,7 @@ export default function Home() {
     baseNote: selectedNote,
     minVolume: 0.1,
     maxVolume: 0.5,
+        audioEngine: audioEngineRef.current,
   });
 
   const {
@@ -68,18 +71,41 @@ export default function Home() {
         await engine.initialize();
         audioEngineRef.current = engine;
         setAudioEngineInitialized(true);
+        
+        if (!isInitialized) {
+          await initialize();
+        }
       } catch (error) {
         console.error('AudioEngine 초기화 실패:', error);
       }
     };
     initAudioEngine();
-  }, []);
+  }, [isInitialized, initialize]);
 
   useEffect(() => {
     if (motionData && soundEnabled && isInitialized) {
       updateMotion(motionData);
     }
   }, [motionData, soundEnabled, isInitialized, updateMotion]);
+
+  const [shouldStopMotion, setShouldStopMotion] = useState(false);
+  
+  useEffect(() => {
+    const handleRouteChange = (url: string) => {
+      if (url.startsWith('/community') && isMotionRecognitionActive) {
+        setShouldStopMotion(true);
+        setIsMotionRecognitionActive(false);
+      } else if (!url.startsWith('/community')) {
+        setShouldStopMotion(false);
+      }
+    };
+
+    router.events.on('routeChangeStart', handleRouteChange);
+    
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChange);
+    };
+  }, [router, isMotionRecognitionActive]);
 
   const handleInitializeSound = async () => {
     try {
@@ -105,35 +131,50 @@ export default function Home() {
   };
 
   const handleStopRecording = async () => {
+    if (isSavingPattern) return; // 이미 저장 중이면 중복 실행 방지
+    
     let finalAudioUrl: string | undefined;
     
-    if (audioFile) {
-      try {
-        setIsAudioUploading(true);
-        const result = await uploadAudio(audioFile);
-        finalAudioUrl = result.url;
-      } catch (error) {
-        console.error('오디오 업로드 실패:', error);
-        alert('오디오 업로드에 실패했습니다. 모션 패턴은 저장되지만 오디오는 포함되지 않습니다.');
-      } finally {
-        setIsAudioUploading(false);
+    try {
+      setIsSavingPattern(true);
+      
+      if (audioFile) {
+        try {
+          setIsAudioUploading(true);
+          const result = await uploadAudio(audioFile);
+          finalAudioUrl = result.url;
+        } catch (error) {
+          console.error('오디오 업로드 실패:', error);
+          alert('오디오 업로드에 실패했습니다. 모션 패턴은 저장되지만 오디오는 포함되지 않습니다.');
+        } finally {
+          setIsAudioUploading(false);
+        }
       }
-    }
-    
-    const pattern = await stopRecording(finalAudioUrl);
-    if (pattern) {
-      setRecordingName('');
-      setRecordingNote(null);
-      setAudioFileUrl('');
-      setAudioFile(null);
-      if (audioFileUrl && audioFileUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(audioFileUrl);
+      
+      const pattern = await stopRecording(finalAudioUrl);
+      if (pattern) {
+        setRecordingName('');
+        setRecordingNote(null);
+        setAudioFileUrl('');
+        setAudioFile(null);
+        if (audioFileUrl && audioFileUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(audioFileUrl);
+        }
+        alert(`모션 패턴 "${pattern.name}"이 저장되었습니다.`);
       }
-      alert(`모션 패턴 "${pattern.name}"이 저장되었습니다.`);
+    } finally {
+      setIsSavingPattern(false);
     }
   };
 
   const handleDeletePattern = async (id: string) => {
+    const pattern = patterns.find((p) => p.id === id);
+    const patternName = pattern?.name || '이 패턴';
+    
+    if (!confirm(`정말로 "${patternName}" 모션 패턴을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+    
     try {
       await deletePatternById(id);
     } catch (error) {
@@ -153,17 +194,33 @@ export default function Home() {
 
   const handleStartVideoRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const videoStream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: true,
+        audio: false,
       });
 
-      videoStreamRef.current = stream;
+      const audioStream = audioEngineRef.current?.getAudioStream();
+      
+      if (!audioStream) {
+        alert('오디오 엔진이 초기화되지 않았습니다. 사운드를 먼저 활성화해주세요.');
+        videoStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      const combinedStream = new MediaStream();
+      videoStream.getVideoTracks().forEach((track) => {
+        combinedStream.addTrack(track);
+      });
+      audioStream.getAudioTracks().forEach((track) => {
+        combinedStream.addTrack(track);
+      });
+
+      videoStreamRef.current = combinedStream;
       recordedChunksRef.current = [];
       recordStartTimeRef.current = Date.now();
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
+      const recorder = new MediaRecorder(combinedStream, {
+        mimeType: 'video/webm;codecs=vp9,opus',
       });
 
       mediaRecorderRef.current = recorder;
@@ -187,7 +244,8 @@ export default function Home() {
         setIsVideoRecording(false);
         setShowVideoModal(true);
 
-        stream.getTracks().forEach((track) => track.stop());
+        combinedStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+        videoStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
         videoStreamRef.current = null;
       };
 
@@ -371,6 +429,8 @@ export default function Home() {
                 autoStart={false}
                 showVideo={true}
                 onMotionData={setMotionData}
+                onActiveChange={setIsMotionRecognitionActive}
+                shouldStop={shouldStopMotion}
               />
             </div>
 
@@ -519,19 +579,21 @@ export default function Home() {
                 
                 <button
                   onClick={handleStartRecording}
-                  disabled={!recordingName.trim()}
+                  disabled={!recordingName.trim() || !isMotionRecognitionActive}
                   style={{
                     padding: '12px 24px',
                     fontSize: '16px',
-                    backgroundColor: recordingName.trim() ? '#10b981' : '#9ca3af',
+                    backgroundColor: recordingName.trim() && isMotionRecognitionActive ? '#10b981' : '#9ca3af',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
-                    cursor: recordingName.trim() ? 'pointer' : 'not-allowed',
+                    cursor: recordingName.trim() && isMotionRecognitionActive ? 'pointer' : 'not-allowed',
                     fontWeight: '500',
                   }}
                 >
-                  모션 캡처 시작
+                  {!isMotionRecognitionActive 
+                    ? '모션인식을 먼저 켜주세요.' 
+                    : '모션 캡처 시작'}
                 </button>
               </div>
             ) : (
@@ -552,18 +614,40 @@ export default function Home() {
                 </div>
                 <button
                   onClick={handleStopRecording}
+                  disabled={isSavingPattern}
                   style={{
                     padding: '12px 24px',
                     fontSize: '16px',
-                    backgroundColor: '#ef4444',
+                    backgroundColor: isSavingPattern ? '#9ca3af' : '#ef4444',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
-                    cursor: 'pointer',
+                    cursor: isSavingPattern ? 'not-allowed' : 'pointer',
                     fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    justifyContent: 'center',
                   }}
                 >
-                  캡처 중지
+                  {isSavingPattern ? (
+                    <>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: '16px',
+                          height: '16px',
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTopColor: 'white',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }}
+                      />
+                      저장 중...
+                    </>
+                  ) : (
+                    '캡처 중지'
+                  )}
                 </button>
               </div>
             )}
