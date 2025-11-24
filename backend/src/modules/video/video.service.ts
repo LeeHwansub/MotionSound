@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 
 export interface MediaUploadResult {
@@ -157,6 +157,38 @@ export class VideoService {
 
   private getDefaultExtension(folder: MediaFolder): string {
     return folder === 'videos' ? 'webm' : 'mp3';
+  }
+
+  async getMedia(key: string): Promise<{ body: Buffer; contentType: string }> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+      
+      if (!response.Body) {
+        throw new InternalServerErrorException('파일을 찾을 수 없습니다.');
+      }
+
+      const chunks: Uint8Array[] = [];
+      const stream = response.Body as any;
+      
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+
+      const buffer = Buffer.concat(chunks);
+      const contentType = response.ContentType || 'application/octet-stream';
+
+      return { body: buffer, contentType };
+    } catch (error) {
+      console.error('미디어 파일 가져오기 실패:', error);
+      throw new InternalServerErrorException(
+        `파일을 가져올 수 없습니다: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 }
 
