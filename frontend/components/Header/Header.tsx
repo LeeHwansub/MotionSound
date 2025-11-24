@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
 import Link from 'next/link';
+import { getProxiedMediaUrl } from '../../lib/api/videos';
 
 export function Header() {
   const router = useRouter();
@@ -64,48 +65,102 @@ export function Header() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '1.5rem',
+            gap: '2rem',
           }}
         >
-          <Link
-            href="/"
-            style={{
-              textDecoration: 'none',
-              color: router.pathname === '/' ? '#2563eb' : '#6b7280',
-              fontWeight: router.pathname === '/' ? '600' : '400',
-              fontSize: '16px',
-              transition: 'color 0.2s',
-            }}
-          >
-            홈
-          </Link>
-          <Link
-            href="/community"
-            style={{
-              textDecoration: 'none',
-              color: router.pathname.startsWith('/community') ? '#2563eb' : '#6b7280',
-              fontWeight: router.pathname.startsWith('/community') ? '600' : '400',
-              fontSize: '16px',
-              transition: 'color 0.2s',
-            }}
-          >
-            커뮤니티
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <Link
+              href="/"
+              style={{
+                textDecoration: 'none',
+                color: router.pathname === '/' ? '#2563eb' : '#6b7280',
+                fontWeight: router.pathname === '/' ? '600' : '400',
+                fontSize: '16px',
+                transition: 'all 0.2s',
+                padding: '8px 12px',
+                borderRadius: '8px',
+              }}
+            >
+              홈
+            </Link>
+            <Link
+              href="/community"
+              style={{
+                textDecoration: 'none',
+                color: router.pathname.startsWith('/community') ? '#2563eb' : '#6b7280',
+                fontWeight: router.pathname.startsWith('/community') ? '600' : '400',
+                fontSize: '16px',
+                transition: 'all 0.2s',
+                padding: '8px 12px',
+                borderRadius: '8px',
+              }}
+            >
+              커뮤니티
+            </Link>
+          </div>
 
           {!authLoading && (
             isAuthenticated ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <Link
+                  href="/profile"
                   style={{
-                    fontSize: '14px',
-                    color: '#6b7280',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textDecoration: 'none',
                     padding: '6px 12px',
-                    backgroundColor: '#f3f4f6',
-                    borderRadius: '6px',
+                    borderRadius: '8px',
+                    transition: 'all 0.2s',
                   }}
                 >
-                  {user?.name || user?.email}
-                </span>
+                  {user?.profileImage ? (
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        border: '2px solid #e5e7eb',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <img
+                        src={getProxiedMediaUrl(user.profileImage)}
+                        alt="프로필"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        backgroundColor: '#e5e7eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span style={{ color: '#9ca3af', fontSize: '16px' }}>👤</span>
+                    </div>
+                  )}
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      fontWeight: router.pathname === '/profile' ? '600' : '400',
+                    }}
+                  >
+                    {user?.name || user?.email}
+                  </span>
+                </Link>
                 <button
                   onClick={logout}
                   style={{
@@ -114,7 +169,7 @@ export function Header() {
                     backgroundColor: '#ef4444',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '6px',
+                    borderRadius: '8px',
                     cursor: 'pointer',
                     fontWeight: '500',
                     transition: 'background-color 0.2s',
@@ -138,7 +193,7 @@ export function Header() {
                   backgroundColor: '#2563eb',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   fontWeight: '500',
                   transition: 'background-color 0.2s',
