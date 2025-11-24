@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { createPost } from '../../lib/api/posts';
 import { uploadVideo } from '../../lib/api/videos';
 import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { Header } from '../../components/Header/Header';
 
 interface PendingPostData {
@@ -23,7 +24,9 @@ type MotionVideoWindow = typeof window & {
 
 export default function CommunityNewPage() {
   const router = useRouter();
-  const { user, isAuthenticated, login, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { showError, showSuccess, showWarning, showInfo, showConfirm } = useToast();
+  const hasCheckedAuthRef = useRef(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -289,7 +292,7 @@ export default function CommunityNewPage() {
     }
 
     if (trimStart >= trimEnd) {
-      alert('시작 시간은 끝 시간보다 작아야 합니다.');
+      showWarning('시작 시간은 끝 시간보다 작아야 합니다.');
       return;
     }
 
@@ -334,7 +337,7 @@ export default function CommunityNewPage() {
 
         mediaRecorder.onerror = (error) => {
           console.error('영상 자르기 실패:', error);
-          alert('영상 자르기에 실패했습니다.');
+          showError('영상 자르기에 실패했습니다.');
           setIsTrimming(false);
           reject(error);
         };
@@ -350,31 +353,43 @@ export default function CommunityNewPage() {
       });
     } catch (error) {
       console.error('영상 자르기 실패:', error);
-      alert('영상 자르기에 실패했습니다.');
+      showError('영상 자르기에 실패했습니다.');
       setIsTrimming(false);
     }
   };
 
   useEffect(() => {
+    if (hasCheckedAuthRef.current) return;
+    
     if (!authLoading && !isAuthenticated) {
-      if (confirm('로그인이 필요합니다. 로그인하시겠습니까?')) {
-        login();
-      } else {
-        router.push('/community');
-      }
+      hasCheckedAuthRef.current = true;
+      showConfirm(
+        '로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?',
+        () => {
+          router.push('/login');
+        },
+        () => {
+          router.push('/community');
+        }
+      );
     }
-  }, [authLoading, isAuthenticated, login, router]);
+  }, [authLoading, isAuthenticated, router, showConfirm]);
 
   const handleSubmit = async () => {
     if (!isAuthenticated) {
-      if (confirm('로그인이 필요합니다. 로그인하시겠습니까?')) {
-        login();
+      const confirmed = await showConfirm(
+        '로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?',
+        () => {},
+        () => {}
+      );
+      if (confirmed) {
+        router.push('/login');
       }
       return;
     }
 
     if (!title.trim() || !content.trim()) {
-      alert('제목과 내용을 입력해주세요.');
+      showWarning('제목과 내용을 입력해주세요.');
       return;
     }
 
@@ -407,11 +422,11 @@ export default function CommunityNewPage() {
       }
       releaseGlobalDraft();
       clearOwnedPreviewUrl();
-      alert('커뮤니티에 게시물이 등록되었습니다.');
+      showSuccess('커뮤니티에 게시물이 등록되었습니다.');
       router.push('/community');
     } catch (error) {
       console.error('게시물 등록 실패:', error);
-      alert('게시물 등록에 실패했습니다.');
+      showError('게시물 등록에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }

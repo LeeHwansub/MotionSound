@@ -1,3 +1,5 @@
+import { parseErrorResponse } from './error-handler';
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -65,8 +67,8 @@ async function request<T>(
     });
 
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || `Post API 요청에 실패했습니다. (${response.status})`);
+      const errorMessage = await parseErrorResponse(response);
+      throw new Error(errorMessage || `Post API 요청에 실패했습니다. (${response.status})`);
     }
 
     if (response.status === 204) {

@@ -11,9 +11,11 @@ import { AudioEngine } from '../lib/audio';
 import { MotionPattern } from '../lib/motionPattern';
 import { uploadAudio } from '../lib/api/videos';
 import { Header } from '../components/Header/Header';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Home() {
   const router = useRouter();
+  const { showError, showSuccess, showWarning, showInfo, showConfirm } = useToast();
   const [motionData, setMotionData] = useState<MotionData | null>(null);
   const [isMotionRecognitionActive, setIsMotionRecognitionActive] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -113,7 +115,7 @@ export default function Home() {
       setSoundEnabled(true);
     } catch (error) {
       console.error('사운드 초기화 실패:', error);
-      alert('사운드를 초기화할 수 없습니다. 브라우저가 오디오를 지원하는지 확인해주세요.');
+      showError('사운드를 초기화할 수 없습니다. 브라우저가 오디오를 지원하는지 확인해주세요.');
     }
   };
 
@@ -124,7 +126,7 @@ export default function Home() {
 
   const handleStartRecording = () => {
     if (!recordingName.trim()) {
-      alert('모션 패턴 이름을 입력해주세요.');
+      showWarning('모션 패턴 이름을 입력해주세요.');
       return;
     }
     startRecording(recordingName, recordingNote || undefined);
@@ -145,7 +147,7 @@ export default function Home() {
           finalAudioUrl = result.url;
         } catch (error) {
           console.error('오디오 업로드 실패:', error);
-          alert('오디오 업로드에 실패했습니다. 모션 패턴은 저장되지만 오디오는 포함되지 않습니다.');
+          showError('오디오 업로드에 실패했습니다. 모션 패턴은 저장되지만 오디오는 포함되지 않습니다.');
         } finally {
           setIsAudioUploading(false);
         }
@@ -160,7 +162,7 @@ export default function Home() {
         if (audioFileUrl && audioFileUrl.startsWith('blob:')) {
           URL.revokeObjectURL(audioFileUrl);
         }
-        alert(`모션 패턴 "${pattern.name}"이 저장되었습니다.`);
+        showSuccess(`모션 패턴 "${pattern.name}"이 저장되었습니다.`);
       }
     } finally {
       setIsSavingPattern(false);
@@ -171,7 +173,12 @@ export default function Home() {
     const pattern = patterns.find((p) => p.id === id);
     const patternName = pattern?.name || '이 패턴';
     
-    if (!confirm(`정말로 "${patternName}" 모션 패턴을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+    const confirmed = await showConfirm(
+      `정말로 "${patternName}" 모션 패턴을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`,
+      () => {},
+      () => {}
+    );
+    if (!confirmed) {
       return;
     }
     
@@ -188,7 +195,7 @@ export default function Home() {
       const localUrl = URL.createObjectURL(file);
       setAudioFile(file);
       setAudioFileUrl(localUrl);
-      alert('오디오 파일이 선택되었습니다. 모션 캡처 후 저장 시 R2에 업로드됩니다.');
+      showInfo('오디오 파일이 선택되었습니다. 모션 캡처 후 저장 시 R2에 업로드됩니다.');
     }
   };
 
@@ -202,7 +209,7 @@ export default function Home() {
       const audioStream = audioEngineRef.current?.getAudioStream();
       
       if (!audioStream) {
-        alert('오디오 엔진이 초기화되지 않았습니다. 사운드를 먼저 활성화해주세요.');
+        showError('오디오 엔진이 초기화되지 않았습니다. 사운드를 먼저 활성화해주세요.');
         videoStream.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -253,7 +260,7 @@ export default function Home() {
       setIsVideoRecording(true);
     } catch (error) {
       console.error('영상 녹화 시작 실패:', error);
-      alert('영상 녹화를 시작할 수 없습니다. 카메라와 마이크 권한을 확인해주세요.');
+      showError('영상 녹화를 시작할 수 없습니다. 카메라와 마이크 권한을 확인해주세요.');
     }
   };
 
@@ -278,7 +285,7 @@ export default function Home() {
 
   const handleRegisterToCommunity = async () => {
     if (!recordedVideoBlob || !videoName.trim()) {
-      alert('영상 이름을 입력해주세요.');
+      showWarning('영상 이름을 입력해주세요.');
       return;
     }
 
@@ -305,12 +312,12 @@ export default function Home() {
         globalWindow.motionVideoDraftDuration = recordedVideoDuration ?? null;
       }
 
-      alert('커뮤니티 작성 페이지로 이동합니다. 영상 내용을 확인하고 수정할 수 있습니다.');
+      showInfo('커뮤니티 작성 페이지로 이동합니다. 영상 내용을 확인하고 수정할 수 있습니다.');
       setShowVideoModal(false);
       router.push('/community/new');
     } catch (error) {
       console.error('커뮤니티 이동 준비 실패:', error);
-      alert('커뮤니티 이동에 실패했습니다.');
+      showError('커뮤니티 이동에 실패했습니다.');
     } finally {
       setIsPreparingPost(false);
     }

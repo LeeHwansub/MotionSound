@@ -2,6 +2,8 @@ import { MotionPattern } from '../motionPattern';
 import { MotionData } from '../../hooks/useMotionRecognition';
 import { Note } from '../musicalNotes';
 
+import { parseErrorResponse } from './error-handler';
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -59,9 +61,9 @@ async function request<T>(
       });
 
       if (!response.ok) {
-        const message = await response.text();
-        console.error(`[API] 요청 실패: ${response.status} ${response.statusText}`, message);
-        throw new Error(message || `Motion API 요청에 실패했습니다. (${response.status})`);
+        const errorMessage = await parseErrorResponse(response);
+        console.error(`[API] 요청 실패: ${response.status} ${response.statusText}`, errorMessage);
+        throw new Error(errorMessage || `Motion API 요청에 실패했습니다. (${response.status})`);
       }
 
       if (response.status === 204) {
