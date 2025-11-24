@@ -1,10 +1,14 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { UserDocument } from '../schemas/user.schema';
 
 export const CurrentUser = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): UserDocument => {
     const request = ctx.switchToHttp().getRequest();
-    return request.user;
+    const user = request.user;
+    if (!user) {
+      throw new UnauthorizedException('로그인이 필요합니다.');
+    }
+    return user;
   },
 );
 

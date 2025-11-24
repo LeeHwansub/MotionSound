@@ -144,6 +144,10 @@ export class AuthService {
     return this.userModel.findById(id).exec();
   }
 
+  async findUserByPhoneNumber(phoneNumber: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ phoneNumber }).exec();
+  }
+
   async generateJwtToken(user: UserDocument): Promise<string> {
     const payload = {
       sub: user._id.toString(),
@@ -155,6 +159,15 @@ export class AuthService {
 
   async verifyToken(token: string): Promise<any> {
     return this.jwtService.verifyAsync(token);
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<UserDocument | null> {
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).exec();
+    return user;
   }
 }
 

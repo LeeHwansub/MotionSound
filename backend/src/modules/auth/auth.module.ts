@@ -12,11 +12,19 @@ import { KakaoStrategy } from './strategies/kakao.strategy';
 import { NaverStrategy } from './strategies/naver.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { VideoModule } from '../video/video.module';
+import { PhoneOtp, PhoneOtpSchema } from './schemas/phone-otp.schema';
+import { SmsService } from './services/sms.service';
+import { OtpService } from './services/otp.service';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: PhoneOtp.name, schema: PhoneOtpSchema },
+    ]),
     PassportModule,
+    VideoModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -31,6 +39,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
   controllers: [AuthController],
   providers: [
     AuthService,
+    SmsService,
+    OtpService,
     GoogleStrategy,
     KakaoStrategy,
     NaverStrategy,
