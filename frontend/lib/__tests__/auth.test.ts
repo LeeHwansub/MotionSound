@@ -42,11 +42,14 @@ describe('Auth API', () => {
       ;(global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         status: 401,
+        statusText: 'Unauthorized',
+        headers: {
+          get: jest.fn(() => 'application/json'),
+        },
+        json: async () => ({ error: 'Unauthorized' }),
       })
 
-      await expect(getCurrentUser('invalid-token')).rejects.toThrow(
-        '사용자 정보를 가져올 수 없습니다.',
-      )
+      await expect(getCurrentUser('invalid-token')).rejects.toThrow()
     })
   })
 

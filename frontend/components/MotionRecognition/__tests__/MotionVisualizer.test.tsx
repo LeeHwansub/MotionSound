@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom'
 import { render } from '@testing-library/react'
 import { MotionVisualizer } from '../MotionVisualizer'
 import { MotionData } from '../../../hooks/useMotionRecognition'

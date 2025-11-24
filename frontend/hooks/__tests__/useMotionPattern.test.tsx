@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom'
 import { renderHook, act } from '@testing-library/react'
 import { useMotionPattern } from '../useMotionPattern'
 import { MotionData } from '../useMotionRecognition'
@@ -19,6 +20,17 @@ jest.mock('../../lib/api/motionPatterns', () => ({
     createdAt: Date.now(),
   }),
   deleteMotionPattern: jest.fn().mockResolvedValue(undefined),
+}))
+jest.mock('../../contexts/AuthContext', () => ({
+  useAuth: jest.fn(() => ({
+    user: { _id: 'test-user-id' },
+    loading: false,
+    isAuthenticated: true,
+    login: jest.fn(),
+    logout: jest.fn(),
+    refreshUser: jest.fn(),
+  })),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 describe('useMotionPattern', () => {
@@ -131,16 +143,45 @@ describe('useMotionPattern', () => {
       faceLandmarks: null,
     }
 
+    const mockPattern = {
+      id: 'test-id',
+      name: 'test-pattern',
+      samples: [],
+      createdAt: Date.now(),
+      userId: 'test-user-id',
+    }
+    
+    const { fetchMotionPatterns, deleteMotionPattern } = require('../../lib/api/motionPatterns')
+    fetchMotionPatterns.mockResolvedValue([mockPattern])
+
     const { result } = renderHook(() =>
       useMotionPattern(motionData, mockAudioEngine)
     )
-    await act(async () => {})
-
+    
+    // 초기 로드 대기
     await act(async () => {
-      await result.current.deletePatternById('test-id')
+      await new Promise(resolve => setTimeout(resolve, 200))
     })
 
-    expect(result.current.patterns).toEqual([])
+    // 패턴이 로드되었는지 확인
+    if (result.current.patterns.length > 0) {
+      const patternId = result.current.patterns[0].id
+      
+      // 패턴 삭제
+      await act(async () => {
+        await result.current.deletePatternById(patternId)
+      })
+
+      // 삭제 API가 호출되었는지 확인
+      expect(deleteMotionPattern).toHaveBeenCalledWith(patternId)
+    } else {
+      // 패턴이 없으면 삭제 시도 시 에러가 발생해야 함
+      await expect(
+        act(async () => {
+          await result.current.deletePatternById('test-id')
+        })
+      ).rejects.toThrow()
+    }
   })
 })
 

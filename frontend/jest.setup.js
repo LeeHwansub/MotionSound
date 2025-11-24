@@ -34,6 +34,18 @@ function MockAudioContext() {
 global.window.AudioContext = MockAudioContext
 global.window.webkitAudioContext = MockAudioContext
 
+global.mockAudioContext.createMediaStreamDestination = jest.fn(() => ({
+  stream: {
+    active: true,
+    id: 'mock-audio-stream',
+    getAudioTracks: jest.fn(() => []),
+    getVideoTracks: jest.fn(() => []),
+    getTracks: jest.fn(() => []),
+  },
+  connect: jest.fn(),
+  disconnect: jest.fn(),
+}))
+
 // Canvas 모킹
 HTMLCanvasElement.prototype.getContext = jest.fn((contextType) => {
   if (contextType === '2d') {

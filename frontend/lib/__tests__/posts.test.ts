@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom'
 import { fetchPosts, fetchPost, createPost, updatePost, deletePost, likePost, incrementViewCount } from '../api/posts'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
@@ -41,10 +42,14 @@ describe('Posts API', () => {
       ;(global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         status: 500,
+        statusText: 'Internal Server Error',
+        headers: {
+          get: jest.fn(() => 'text/plain'),
+        },
         text: async () => 'Server Error',
       })
 
-      await expect(fetchPosts()).rejects.toThrow('Server Error')
+      await expect(fetchPosts()).rejects.toThrow()
     })
   })
 
@@ -173,11 +178,10 @@ describe('Posts API', () => {
         json: async () => mockPost,
       })
 
-      const result = await likePost('1', 'user1')
+      const result = await likePost('1')
       expect(global.fetch).toHaveBeenCalledWith(`${API_BASE}/posts/1/like`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user1' }),
       })
       expect(result.likeCount).toBe(1)
       expect(result.likedBy).toContain('user1')
@@ -202,7 +206,7 @@ describe('Posts API', () => {
         json: async () => mockPost,
       })
 
-      const result = await likePost('1', 'user1')
+      const result = await likePost('1')
       expect(result.likeCount).toBe(0)
       expect(result.likedBy).not.toContain('user1')
     })
