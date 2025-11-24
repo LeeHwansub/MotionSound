@@ -84,6 +84,20 @@ export function Header() {
               홈
             </Link>
             <Link
+              href="/motion-capture"
+              style={{
+                textDecoration: 'none',
+                color: router.pathname === '/motion-capture' ? '#2563eb' : '#6b7280',
+                fontWeight: router.pathname === '/motion-capture' ? '600' : '400',
+                fontSize: '16px',
+                transition: 'all 0.2s',
+                padding: '8px 12px',
+                borderRadius: '8px',
+              }}
+            >
+              모션 캡처
+            </Link>
+            <Link
               href="/community"
               style={{
                 textDecoration: 'none',
