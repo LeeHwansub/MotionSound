@@ -17,7 +17,7 @@ interface UploadedMediaFile {
   size: number;
 }
 
-export type MediaFolder = 'videos' | 'audios';
+export type MediaFolder = 'videos' | 'audios' | 'images' | 'profile';
 
 @Injectable()
 export class VideoService {
@@ -123,6 +123,14 @@ export class VideoService {
     return this.uploadMedia(file, 'audios');
   }
 
+  async uploadImage(file: UploadedMediaFile): Promise<MediaUploadResult> {
+    return this.uploadMedia(file, 'images');
+  }
+
+  async uploadProfileImage(file: UploadedMediaFile): Promise<MediaUploadResult> {
+    return this.uploadMedia(file, 'profile');
+  }
+
   private resolvePublicBaseUrl(
     rawUrl: string | undefined,
     endpointBase: string,
@@ -156,7 +164,9 @@ export class VideoService {
   }
 
   private getDefaultExtension(folder: MediaFolder): string {
-    return folder === 'videos' ? 'webm' : 'mp3';
+    if (folder === 'videos') return 'webm';
+    if (folder === 'profile' || folder === 'images') return 'jpg';
+    return 'mp3';
   }
 
   async getMedia(key: string): Promise<{ body: Buffer; contentType: string }> {

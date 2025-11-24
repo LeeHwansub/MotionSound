@@ -19,6 +19,18 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop()
+  profileImage?: string;
+
+  @Prop()
+  phoneNumber?: string;
+
+  @Prop({ enum: ['male', 'female', 'other', 'prefer_not_to_say'] })
+  gender?: string;
+
+  @Prop()
+  birthDate?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
