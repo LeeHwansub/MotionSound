@@ -41,9 +41,9 @@ export default function CommunityPage() {
     return (
       <>
         <Header />
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <p>로딩 중...</p>
-        </div>
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p>로딩 중...</p>
+      </div>
       </>
     );
   }

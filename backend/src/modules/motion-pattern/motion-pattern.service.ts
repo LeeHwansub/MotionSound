@@ -36,6 +36,21 @@ export class MotionPatternService {
     }
   }
 
+  async findByUserId(userId: string) {
+    try {
+      this.logger.log(`사용자 ${userId}의 모션 패턴 목록 조회 시작`);
+      const patterns = await this.motionPatternModel
+        .find({ userId: userId })
+        .sort({ createdAt: -1 })
+        .exec();
+      this.logger.log(`모션 패턴 ${patterns.length}개 조회 완료`);
+      return patterns;
+    } catch (error) {
+      this.logger.error('모션 패턴 목록 조회 실패:', error);
+      throw error;
+    }
+  }
+
   async findOne(id: string) {
     const pattern = await this.motionPatternModel.findById(id).exec();
     if (!pattern) {

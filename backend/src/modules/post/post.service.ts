@@ -21,12 +21,17 @@ export class PostService {
   }
 
   async findAll() {
-    return this.postModel.find().sort({ createdAt: -1 }).exec();
+    // 공개 게시물만 조회
+    return this.postModel.find({ isPublic: true }).sort({ createdAt: -1 }).exec();
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userEmail?: string) {
     const post = await this.postModel.findById(id).exec();
     if (!post) {
+      throw new NotFoundException('게시물을 찾을 수 없습니다.');
+    }
+    // 비공개 게시물은 작성자만 조회 가능
+    if (!post.isPublic && post.author !== userEmail) {
       throw new NotFoundException('게시물을 찾을 수 없습니다.');
     }
     return post;

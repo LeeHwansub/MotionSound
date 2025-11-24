@@ -35,8 +35,8 @@ export class PostController {
 
   @Public()
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.postService.findOne(id);
+  async findOne(@Param('id') id: string, @CurrentUser() user?: UserDocument) {
+    return this.postService.findOne(id, user?.email);
   }
 
   @Patch(':id')

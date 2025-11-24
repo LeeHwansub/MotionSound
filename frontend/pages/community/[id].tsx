@@ -110,9 +110,9 @@ export default function PostDetailPage() {
     return (
       <>
         <Header />
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <p>로딩 중...</p>
-        </div>
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p>로딩 중...</p>
+      </div>
       </>
     );
   }
@@ -121,20 +121,20 @@ export default function PostDetailPage() {
     return (
       <>
         <Header />
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <p>게시물을 찾을 수 없습니다.</p>
-          <button
-            onClick={() => router.push('/community')}
-            style={{
-              marginTop: '1rem',
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#0070f3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p>게시물을 찾을 수 없습니다.</p>
+        <button
+          onClick={() => router.push('/community')}
+          style={{
+            marginTop: '1rem',
+            padding: '0.75rem 1.5rem',
+            backgroundColor: '#0070f3',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+          }}
+        >
           목록으로 돌아가기
         </button>
       </div>
