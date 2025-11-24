@@ -9,6 +9,7 @@ import {
 import { AudioEngine } from '../lib/audio';
 import { Note } from '../lib/musicalNotes';
 import { mapMotionToSound } from '../lib/soundMapping';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface UseMotionPatternConfig {
   threshold?: number;
@@ -53,20 +54,30 @@ export const useMotionPattern = (
   const previousMotionDataRef = useRef<MotionData | null>(null);
   const currentOscillatorsRef = useRef<Map<string, { oscillator: OscillatorNode; gainNode: GainNode }>>(new Map());
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const { user } = useAuth();
 
   const loadPatterns = useCallback(async () => {
     try {
-      const saved = await fetchMotionPatterns();
+      if (!user?._id) {
+        setPatterns([]);
+        return;
+      }
+      const userId = user._id;
+      const saved = await fetchMotionPatterns(userId);
       setPatterns(saved);
     } catch (error) {
       console.error('모션 패턴 불러오기 실패:', error);
       setPatterns([]);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    loadPatterns();
-  }, [loadPatterns]);
+    if (user?._id) {
+      loadPatterns();
+    } else {
+      setPatterns([]);
+    }
+  }, [user?._id, loadPatterns]);
 
   useEffect(() => {
     const preloadAudioFiles = async () => {
@@ -84,24 +95,31 @@ export const useMotionPattern = (
               const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
               audioBufferCacheRef.current.set(pattern.audioUrl, audioBuffer);
             } else {
-              // R2 URL인 경우 CORS 처리
-              const response = await fetch(pattern.audioUrl, {
-                mode: 'cors',
-                credentials: 'omit',
+              const { getProxiedMediaUrl } = await import('../lib/api/videos');
+              const proxiedUrl = getProxiedMediaUrl(pattern.audioUrl);
+              
+              console.log(`오디오 파일 로드 시도: ${pattern.name}`, {
+                originalUrl: pattern.audioUrl,
+                proxiedUrl,
               });
               
+              const response = await fetch(proxiedUrl);
+              
               if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorText = await response.text().catch(() => response.statusText);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
               }
               
               const arrayBuffer = await response.arrayBuffer();
               const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
               audioBufferCacheRef.current.set(pattern.audioUrl, audioBuffer);
+              console.log(`오디오 파일 로드 성공: ${pattern.name}`);
             }
           } catch (error) {
-            // CORS 오류는 조용히 처리 (R2 버킷 CORS 설정 필요)
             if (error instanceof TypeError && (error.message.includes('CORS') || error.message.includes('Failed to fetch'))) {
-              console.warn(`오디오 파일 로드 실패 (${pattern.name}): R2 버킷 CORS 설정이 필요하거나 파일이 없을 수 있습니다.`);
+              console.warn(`오디오 파일 로드 실패 (${pattern.name}): 네트워크 오류 또는 CORS 문제`, error);
+            } else if (error instanceof Error && error.message.includes('HTTP 404')) {
+              console.warn(`오디오 파일을 찾을 수 없습니다 (${pattern.name}): ${pattern.audioUrl}`, error);
             } else {
               console.error(`오디오 파일 프리로드 실패 (${pattern.name}):`, error);
             }
@@ -156,22 +174,34 @@ export const useMotionPattern = (
   const deletePatternById = useCallback(
     async (id: string) => {
       try {
+        const pattern = patterns.find((p) => p.id === id);
+        const userId = user?._id;
+        
+        if (!pattern) {
+          throw new Error('삭제할 패턴을 찾을 수 없습니다.');
+        }
+        
+        if (pattern.userId && pattern.userId !== userId) {
+          throw new Error('본인이 생성한 패턴만 삭제할 수 있습니다.');
+        }
+
         await deleteMotionPattern(id);
         await loadPatterns();
       } catch (error) {
         console.error('모션 패턴 삭제 실패:', error);
+        const errorMessage = error instanceof Error ? error.message : '모션 패턴 삭제에 실패했습니다.';
+        alert(errorMessage);
+        throw error;
       }
     },
-    [loadPatterns]
+    [loadPatterns, patterns, user]
   );
 
   useEffect(() => {
     if (isRecording && motionData) {
       const now = Date.now();
-      // 샘플링 간격 체크 및 최대 샘플 수 제한
       if (now - lastSampleTimeRef.current >= sampleInterval) {
         setRecordingSamples((prev) => {
-          // 최대 샘플 수에 도달하면 오래된 샘플 제거 (FIFO)
           if (prev.length >= maxSamples) {
             return [...prev.slice(1), motionData];
           }
@@ -223,6 +253,7 @@ export const useMotionPattern = (
 
       if (bestMatch.audioUrl && audioEngine) {
         const audioContext = audioEngine.getAudioContext();
+        const masterGainNode = audioEngine.getMasterGainNode();
         if (audioContext) {
           const cachedBuffer = audioBufferCacheRef.current.get(bestMatch.audioUrl);
           if (cachedBuffer) {
@@ -234,14 +265,18 @@ export const useMotionPattern = (
               gainNode.gain.value = 0.5;
 
               source.connect(gainNode);
-              gainNode.connect(audioContext.destination);
+              if (masterGainNode) {
+                gainNode.connect(masterGainNode);
+              } else {
+                gainNode.connect(audioContext.destination);
+              }
 
               source.start(0);
               currentAudioSourceRef.current = source;
             } catch (error) {
               console.error('오디오 재생 실패:', error);
             }
-          } else {
+            } else {
             audioEngine
               .playAudioFile(bestMatch.audioUrl, 0.5)
               .then((source) => {
@@ -274,6 +309,7 @@ export const useMotionPattern = (
           existing.gainNode.gain.value = soundParams.leftHand.volume;
         } else {
           const audioContext = audioEngine.getAudioContext();
+          const masterGainNode = audioEngine.getMasterGainNode();
           if (!audioContext) return;
 
           const oscillator = audioContext.createOscillator();
@@ -284,7 +320,11 @@ export const useMotionPattern = (
           gainNode.gain.value = soundParams.leftHand.volume;
 
           oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
+          if (masterGainNode) {
+            gainNode.connect(masterGainNode);
+          } else {
+            gainNode.connect(audioContext.destination);
+          }
 
           oscillator.start();
           currentOscillatorsRef.current.set('leftHand', { oscillator, gainNode });
@@ -307,6 +347,7 @@ export const useMotionPattern = (
           existing.gainNode.gain.value = soundParams.rightHand.volume;
         } else {
           const audioContext = audioEngine.getAudioContext();
+          const masterGainNode = audioEngine.getMasterGainNode();
           if (!audioContext) return;
 
           const oscillator = audioContext.createOscillator();
@@ -317,7 +358,11 @@ export const useMotionPattern = (
           gainNode.gain.value = soundParams.rightHand.volume;
 
           oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
+          if (masterGainNode) {
+            gainNode.connect(masterGainNode);
+          } else {
+            gainNode.connect(audioContext.destination);
+          }
 
           oscillator.start();
           currentOscillatorsRef.current.set('rightHand', { oscillator, gainNode });

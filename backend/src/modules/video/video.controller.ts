@@ -1,12 +1,17 @@
 import {
   Controller,
   Post,
+  Get,
+  Param,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { Response } from 'express';
 import { VideoService, MediaUploadResult } from './video.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('videos')
 export class VideoController {
@@ -53,6 +58,26 @@ export class AudioController {
       size: (file as any).size,
     });
     return this.videoService.uploadAudio(file as any);
+  }
+}
+
+@Controller('media')
+export class MediaController {
+  constructor(private readonly videoService: VideoService) {}
+
+  @Public()
+  @Get(':key(*)')
+  async getMedia(@Param('key') key: string, @Res() res: Response) {
+    try {
+      const { body, contentType } = await this.videoService.getMedia(key);
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(body);
+    } catch (error) {
+      res.status(404).send('파일을 찾을 수 없습니다.');
+    }
   }
 }
 

@@ -8,17 +8,28 @@ export default function AuthCallback() {
   const { refreshUser } = useAuth();
 
   useEffect(() => {
+    if (!router.isReady) return;
+
     const { token } = router.query;
 
     if (token && typeof token === 'string') {
       saveToken(token);
-      refreshUser().then(() => {
-        router.push('/');
-      });
+      refreshUser()
+        .then(() => {
+          router.push('/').catch(() => {
+            // 라우터 취소 오류 무시
+          });
+        })
+        .catch(() => {
+          // 에러 발생 시에도 홈으로 이동
+          router.push('/').catch(() => {});
+        });
     } else {
-      router.push('/');
+      router.push('/').catch(() => {
+        // 라우터 취소 오류 무시
+      });
     }
-  }, [router, refreshUser]);
+  }, [router.isReady, router.query, router, refreshUser]);
 
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>

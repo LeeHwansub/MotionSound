@@ -3,13 +3,17 @@ import { useMotionRecognition } from '../../hooks/useMotionRecognition';
 
 interface MotionCaptureProps {
   onMotionData?: (motionData: any) => void;
+  onActiveChange?: (isActive: boolean) => void;
   autoStart?: boolean;
   showVideo?: boolean;
+  shouldStop?: boolean;
 }
 export const MotionCapture: React.FC<MotionCaptureProps> = ({
   onMotionData,
+  onActiveChange,
   autoStart = false,
   showVideo = true,
+  shouldStop = false,
 }) => {
   const { motionData, isActive, isCameraActive, isLoading, error, startCamera, start, stop, stopCamera, videoRef } = useMotionRecognition();
 
@@ -18,6 +22,12 @@ export const MotionCapture: React.FC<MotionCaptureProps> = ({
       onMotionData(motionData);
     }
   }, [motionData, onMotionData]);
+
+  useEffect(() => {
+    if (onActiveChange) {
+      onActiveChange(isActive);
+    }
+  }, [isActive, onActiveChange]);
 
   useEffect(() => {
     startCamera();
@@ -37,6 +47,12 @@ export const MotionCapture: React.FC<MotionCaptureProps> = ({
       }
     };
   }, [autoStart, isCameraActive, isActive, start, stop]);
+
+  useEffect(() => {
+    if (shouldStop && isActive) {
+      stop();
+    }
+  }, [shouldStop, isActive, stop]);
 
   return (
     <div className="motion-capture">

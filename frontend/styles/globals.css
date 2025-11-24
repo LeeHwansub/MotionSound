@@ -23,3 +23,9 @@ a {
   text-decoration: none;
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

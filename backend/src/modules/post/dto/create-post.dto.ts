@@ -19,8 +19,9 @@ export class CreatePostDto {
   @MaxLength(10000)
   content: string;
 
+  @IsOptional()
   @IsString()
-  author: string;
+  author?: string;
 
   @IsOptional()
   @IsString()

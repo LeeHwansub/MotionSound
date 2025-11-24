@@ -7,6 +7,7 @@ import { Note, DEFAULT_NOTE } from '../lib/musicalNotes';
 export interface UseSoundMappingConfig extends AudioConfig, MotionToSoundConfig {
   enabled?: boolean;
   baseNote?: Note;
+  audioEngine?: AudioEngine | null; // 외부에서 AudioEngine 인스턴스를 전달받을 수 있음
 }
 
 export interface UseSoundMappingReturn {
@@ -29,6 +30,14 @@ export const useSoundMapping = (
       return;
     }
 
+    // 외부에서 AudioEngine을 전달받은 경우 사용
+    if (config.audioEngine) {
+      audioEngineRef.current = config.audioEngine;
+      setIsInitialized(true);
+      return;
+    }
+
+    // AudioEngine이 전달되지 않은 경우 새로 생성
     try {
       const audioEngine = new AudioEngine({
         sampleRate: config.sampleRate,
@@ -46,6 +55,7 @@ export const useSoundMapping = (
     }
   }, [
     isInitialized,
+    config.audioEngine,
     config.sampleRate,
     config.maxVolume,
     config.minFrequency,
@@ -115,11 +125,12 @@ export const useSoundMapping = (
 
   useEffect(() => {
     return () => {
-      if (audioEngineRef.current) {
+      // 외부에서 전달받은 AudioEngine은 dispose하지 않음
+      if (audioEngineRef.current && !config.audioEngine) {
         audioEngineRef.current.dispose();
       }
     };
-  }, []);
+  }, [config.audioEngine]);
 
   return {
     isInitialized,

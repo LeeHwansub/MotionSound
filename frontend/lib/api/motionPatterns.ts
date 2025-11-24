@@ -11,6 +11,7 @@ interface MotionPatternResponse {
   samples?: MotionData[];
   audioUrl?: string;
   baseNote?: Note;
+  userId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -21,8 +22,16 @@ const mapMotionPattern = (data: MotionPatternResponse): MotionPattern => ({
   samples: data.samples ?? [],
   audioUrl: data.audioUrl,
   baseNote: data.baseNote,
+  userId: data.userId,
   createdAt: data.createdAt ? Date.parse(data.createdAt) : Date.now(),
 });
+
+function getAuthToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('auth_token');
+  }
+  return null;
+}
 
 async function request<T>(
   path: string,
@@ -30,15 +39,22 @@ async function request<T>(
   retries: number = 3,
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const token = getAuthToken();
   console.log(`[API] ${options?.method || 'GET'} ${url}`);
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(options?.headers || {}),
-        },
+        headers,
         ...options,
       });
 
@@ -83,7 +99,9 @@ export interface CreateMotionPatternPayload {
   baseNote?: Note;
 }
 
-export async function fetchMotionPatterns(): Promise<MotionPattern[]> {
+export async function fetchMotionPatterns(userId?: string): Promise<MotionPattern[]> {
+  // 백엔드에서 인증된 사용자의 패턴만 반환하므로 userId 파라미터는 무시됨
+  // 인증 토큰이 필요함
   const data = await request<MotionPatternResponse[]>('/patterns');
   return data.map(mapMotionPattern);
 }
@@ -101,4 +119,3 @@ export async function createMotionPattern(
 export async function deleteMotionPattern(id: string): Promise<void> {
   await request(`/patterns/${id}`, { method: 'DELETE' });
 }
-

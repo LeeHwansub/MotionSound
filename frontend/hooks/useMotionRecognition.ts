@@ -54,6 +54,7 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
   const isActiveRef = useRef<boolean>(false);
   const isProcessingRef = useRef<boolean>(false);
   const frameSkipCountRef = useRef<number>(0);
+  const timeoutRefsRef = useRef<Set<NodeJS.Timeout>>(new Set());
   
   const poseResultsRef = useRef<any>(null);
   const handsResultsRef = useRef<any>(null);
@@ -150,31 +151,37 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
 
     if (videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
       frameSkipCountRef.current++;
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        timeoutRefsRef.current.delete(timeoutId);
         if (isActiveRef.current) {
           animationFrameRef.current = requestAnimationFrame(processFrame);
         }
       }, 33);
+      timeoutRefsRef.current.add(timeoutId);
       return;
     }
 
     if (isProcessingRef.current) {
       frameSkipCountRef.current++;
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        timeoutRefsRef.current.delete(timeoutId);
         if (isActiveRef.current) {
           animationFrameRef.current = requestAnimationFrame(processFrame);
         }
       }, 33);
+      timeoutRefsRef.current.add(timeoutId);
       return;
     }
 
     if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
       frameSkipCountRef.current++;
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        timeoutRefsRef.current.delete(timeoutId);
         if (isActiveRef.current) {
           animationFrameRef.current = requestAnimationFrame(processFrame);
         }
       }, 33);
+      timeoutRefsRef.current.add(timeoutId);
       return;
     }
 
@@ -222,11 +229,13 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
             await faceMesh.send({ image: canvas });
           }
           
-          setTimeout(() => {
+          const timeoutId = setTimeout(() => {
+            timeoutRefsRef.current.delete(timeoutId);
             if (isProcessingRef.current) {
               isProcessingRef.current = false;
             }
           }, 3000);
+          timeoutRefsRef.current.add(timeoutId);
         } catch (sendError) {
           console.error('프레임 전송 오류:', sendError);
           isProcessingRef.current = false;
@@ -240,11 +249,13 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
       isProcessingRef.current = false;
     }
 
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      timeoutRefsRef.current.delete(timeoutId);
       if (isActiveRef.current && videoRef.current && mediaPipeRef.current) {
         animationFrameRef.current = requestAnimationFrame(processFrame);
       }
     }, 33);
+    timeoutRefsRef.current.add(timeoutId);
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -370,11 +381,17 @@ export const useMotionRecognition = (): UseMotionRecognitionReturn => {
 
   const stop = useCallback(() => {
     isActiveRef.current = false;
+    isProcessingRef.current = false;
 
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
+
+    timeoutRefsRef.current.forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    timeoutRefsRef.current.clear();
 
     setIsActive(false);
     setMotionData(null);

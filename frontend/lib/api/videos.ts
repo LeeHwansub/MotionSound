@@ -1,6 +1,52 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+function getAuthToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('auth_token');
+  }
+  return null;
+}
+
+export function getProxiedMediaUrl(url: string): string {
+  if (!url) return url;
+  
+  if (url.startsWith('blob:') || url.startsWith(API_BASE)) {
+    return url;
+  }
+
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+    
+    const audiosIndex = pathParts.findIndex(part => part === 'audios');
+    const videosIndex = pathParts.findIndex(part => part === 'videos');
+    
+    let key: string | null = null;
+    
+    if (audiosIndex !== -1) {
+      key = pathParts.slice(audiosIndex).join('/');
+    } else if (videosIndex !== -1) {
+      key = pathParts.slice(videosIndex).join('/');
+    } else if (pathParts.length > 0) {
+      const firstPart = pathParts[0];
+      if (firstPart !== 'audios' && firstPart !== 'videos') {
+        key = pathParts.slice(1).join('/');
+      } else {
+        key = pathParts.join('/');
+      }
+    }
+    
+    if (key) {
+      return `${API_BASE}/media/${key}`;
+    }
+  } catch (error) {
+    console.warn('URL 파싱 실패:', url, error);
+  }
+
+  return url;
+}
+
 export interface UploadMediaResponse {
   url: string;
   key: string;
@@ -12,8 +58,16 @@ export async function uploadVideo(file: Blob): Promise<UploadMediaResponse> {
   const formData = new FormData();
   formData.append('file', file, `record-${Date.now()}.webm`);
 
+  const token = getAuthToken();
+  const headers: HeadersInit = {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}/videos`, {
     method: 'POST',
+    headers,
     body: formData,
   });
 
@@ -32,8 +86,16 @@ export async function uploadAudio(file: File | Blob): Promise<UploadMediaRespons
     : `audio-${Date.now()}.mp3`;
   formData.append('file', file, fileName);
 
+  const token = getAuthToken();
+  const headers: HeadersInit = {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}/audios`, {
     method: 'POST',
+    headers,
     body: formData,
   });
 

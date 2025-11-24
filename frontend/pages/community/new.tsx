@@ -116,7 +116,7 @@ export default function CommunityNewPage() {
       setVideoSize(blob.size);
 
       const existingUrl = globalWindow.motionVideoDraftUrl;
-      if (existingUrl) {
+      if (existingUrl && !existingUrl.startsWith('blob:')) {
         updatePreviewUrl(existingUrl, false);
       } else {
         const generatedUrl = URL.createObjectURL(blob);

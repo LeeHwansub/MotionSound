@@ -9,6 +9,7 @@ export interface MotionPattern {
   audioUrl?: string;
   baseNote?: Note;
   createdAt: number;
+  userId?: string;
 }
 
 export function extractFeatures(motionData: MotionData): number[] {
