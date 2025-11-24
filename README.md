@@ -9,6 +9,7 @@ Motion Sound는 단순한 모션 인식 기술이 아니라, 사용자의 제스
 ## 목차
 
 - [프로젝트 개요](#1-프로젝트-개요)
+- [페이지 스크린샷](#페이지-스크린샷)
 - [설치 및 실행](#2-설치-및-실행)
 - [폴더 구조](#3-폴더-구조)
 - [기술 스택](#4-기술-스택--버전)
@@ -72,7 +73,58 @@ Motion Sound는 카메라 하나만 있으면 누구나 **'몸으로 연주'**�
 | **Database** | MySQL + MongoDB 혼용 | 정형(회원, 설정) + 비정형(모션, 사운드) 데이터 분리 |
 | **Infra** | Docker + Nginx | 환경 일관성, 빠른 배포, HTTPS 통신 안정성 |
 
----
+### 시스템 아키텍처 다이어그램
+
+![시스템 아키텍처](docs/diagrams/system-architecture.png)
+
+### 프론트엔드 아키텍처
+
+![프론트엔드 아키텍처](docs/diagrams/frontend-architecture.png)
+
+
+### 백엔드 아키텍처
+
+![백엔드 아키텍처](docs/diagrams/backend-architecture.png)
+
+
+### 데이터 흐름 다이어그램
+
+![데이터 흐름](docs/diagrams/data-flow.png)
+
+
+### 모듈 구조
+
+![모듈 구조](docs/diagrams/module-structure.png)
+
+### 페이지 스크린샷
+
+#### 홈페이지
+![홈페이지](docs/screenshots/home.png)
+> 메인 랜딩 페이지 - 서비스 소개 및 시작하기 유도
+
+#### 로그인 페이지
+![로그인 페이지](docs/screenshots/login.png)
+> 소셜 로그인 (Google, Kakao, Naver) 지원
+
+#### 모션 캡처 페이지
+![모션 캡처 페이지](docs/screenshots/motion-capture.png)
+> 실시간 모션 인식 및 사운드 매핑 기능
+
+#### 프로필 페이지
+![프로필 페이지](docs/screenshots/profile.png)
+> 사용자 프로필 관리 및 전화번호 인증
+
+#### 커뮤니티 페이지
+![커뮤니티 페이지](docs/screenshots/community.png)
+> 게시물 목록 및 공유 기능
+
+#### 게시글 작성 페이지
+![게시글 작성 페이지](docs/screenshots/community-new.png)
+> 비디오 업로드 및 게시물 작성
+
+#### 게시글 상세 페이지
+![게시글 상세 페이지](docs/screenshots/community-detail.png)
+> 게시물 상세 보기 및 좋아요 기능
 
 ## 2. 설치 및 실행
 
